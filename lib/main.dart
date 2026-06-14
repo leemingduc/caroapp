@@ -2279,7 +2279,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildModeChip(String label, GameMode mode) {
+  Widget _buildModeChip(String label, GameMode mode, {StateSetter? setModalState}) {
     final isSelected = _gameMode == mode;
     return GestureDetector(
       onTap: () {
@@ -2289,6 +2289,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           _aiThinking = false;
         });
         _resetMatch();
+        if (setModalState != null) {
+          setModalState(() {});
+        }
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -2314,10 +2317,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildDifficultyChip(AiDifficulty difficulty) {
+  Widget _buildDifficultyChip(AiDifficulty difficulty, {StateSetter? setModalState}) {
     final isSelected = _aiDifficulty == difficulty;
     return GestureDetector(
-      onTap: () => setState(() => _aiDifficulty = difficulty),
+      onTap: () {
+        setState(() => _aiDifficulty = difficulty);
+        if (setModalState != null) {
+          setModalState(() {});
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -2527,6 +2535,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   void _showMobileSettingsMenu(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1E293B),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -2534,102 +2543,219 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'CÀI ĐẶT TRẬN ĐẤU',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white30, letterSpacing: 1.5),
-                  ),
-                  const SizedBox(height: 20),
-                  // Board size option
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Kích thước bàn cờ:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white.withOpacity(0.1)),
-                        ),
-                        child: DropdownButton<int>(
-                          value: _boardSize,
-                          dropdownColor: const Color(0xFF1E293B),
-                          underline: const SizedBox(),
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white70, size: 18),
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                          onChanged: (int? newValue) {
-                            if (newValue != null && newValue != _boardSize) {
-                              Navigator.pop(context);
-                              _showResetWarningDialog(() {
-                                setState(() {
-                                  _boardSize = newValue;
-                                });
-                                _resetMatch();
-                              });
-                            }
-                          },
-                          items: const [
-                            DropdownMenuItem(value: 20, child: Text('20 x 20')),
-                            DropdownMenuItem(value: 25, child: Text('25 x 25')),
-                            DropdownMenuItem(value: 30, child: Text('30 x 30')),
-                          ],
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // Block rule option
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'CÀI ĐẶT TRẬN ĐẤU',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white30, letterSpacing: 1.5),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // --- Board Size Adjustment ---
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Kích thước:', style: TextStyle(fontSize: 14, color: Colors.white70)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Luật chặn hai đầu:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                            SizedBox(height: 2),
-                            Text('Không thắng khi bị đối thủ chặn cả 2 đầu', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                            IconButton(
+                              onPressed: _boardSize > 3
+                                  ? () => _changeBoardSize(_boardSize - 1, onConfirmExtra: () => setModalState(() {}))
+                                  : null,
+                              icon: const Icon(Icons.remove_circle_outline_rounded),
+                              color: const Color(0xFF00F2FE),
+                              disabledColor: Colors.white24,
+                              iconSize: 22,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            GestureDetector(
+                              onTap: () => _showCustomSizeDialog(onConfirmExtra: () => setModalState(() {})),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFF00F2FE).withOpacity(0.3)),
+                                ),
+                                child: Text(
+                                  '$_boardSize × $_boardSize',
+                                  style: const TextStyle(
+                                    color: Color(0xFF00F2FE),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _boardSize < 35
+                                  ? () => _changeBoardSize(_boardSize + 1, onConfirmExtra: () => setModalState(() {}))
+                                  : null,
+                              icon: const Icon(Icons.add_circle_outline_rounded),
+                              color: const Color(0xFF00F2FE),
+                              disabledColor: Colors.white24,
+                              iconSize: 22,
+                              visualDensity: VisualDensity.compact,
+                            ),
                           ],
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 4,
+                        activeTrackColor: const Color(0xFF00F2FE),
+                        inactiveTrackColor: Colors.white10,
+                        thumbColor: const Color(0xFF00F2FE),
+                        overlayColor: const Color(0xFF00F2FE).withOpacity(0.2),
+                        valueIndicatorColor: const Color(0xFF1E293B),
+                        valueIndicatorTextStyle: const TextStyle(color: Colors.white, fontSize: 12),
                       ),
-                      Switch(
-                        value: _doubleBlockRule,
-                        activeColor: const Color(0xFF00F2FE),
-                        onChanged: (bool value) {
-                          setModalState(() {
-                            _doubleBlockRule = value;
-                          });
-                          setState(() {
-                            _doubleBlockRule = value;
-                          });
+                      child: Slider(
+                        value: _boardSize.toDouble().clamp(3.0, 35.0),
+                        min: 3,
+                        max: 35,
+                        divisions: 32,
+                        label: '$_boardSize × $_boardSize',
+                        onChanged: (double val) {
+                          final newSize = val.round();
+                          if (newSize != _boardSize) {
+                            _changeBoardSize(newSize, onConfirmExtra: () => setModalState(() {}));
+                          }
                         },
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  // Clear scores option
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _resetMatch(clearScore: true);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF43F5E).withOpacity(0.1),
-                      foregroundColor: const Color(0xFFF43F5E),
-                      side: const BorderSide(color: Color(0xFFF43F5E), width: 1),
-                      minimumSize: const Size.fromHeight(45),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
-                    child: const Text('Đặt lại tất cả điểm số (0 - 0)'),
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00F2FE).withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF00F2FE).withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.emoji_events_rounded, color: Color(0xFF00F2FE), size: 14),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Cần $_winLength ô liên tiếp để thắng',
+                            style: const TextStyle(
+                              color: Color(0xFF00F2FE),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // --- Game Mode Selection ---
+                    const SizedBox(height: 24),
+                    const Text(
+                      'CHẾ ĐỘ CHƠI',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildModeChip('👥 2 Người', GameMode.pvp, setModalState: setModalState),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildModeChip('🤖 vs Máy', GameMode.pvc, setModalState: setModalState),
+                        ),
+                      ],
+                    ),
+                    
+                    // --- AI Difficulty Selection ---
+                    if (_gameMode == GameMode.pvc) ...[
+                      const SizedBox(height: 24),
+                      const Text(
+                        'ĐỘ KHÓ AI',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: AiDifficulty.values
+                            .map((d) => _buildDifficultyChip(d, setModalState: setModalState))
+                            .toList(),
+                      ),
+                    ],
+                    
+                    // --- Block Rule Option ---
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Luật chặn hai đầu:', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                              SizedBox(height: 2),
+                              Text('Không thắng khi bị đối thủ chặn cả 2 đầu', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _doubleBlockRule,
+                          activeColor: const Color(0xFF00F2FE),
+                          onChanged: (bool value) {
+                            setModalState(() {
+                              _doubleBlockRule = value;
+                            });
+                            setState(() {
+                              _doubleBlockRule = value;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    
+                    // --- Reset Scores Option ---
+                    const SizedBox(height: 28),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _resetMatch(clearScore: true);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF43F5E).withOpacity(0.1),
+                        foregroundColor: const Color(0xFFF43F5E),
+                        side: const BorderSide(color: Color(0xFFF43F5E), width: 1),
+                        minimumSize: const Size.fromHeight(45),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Đặt lại tất cả điểm số (0 - 0)'),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             );
           },
