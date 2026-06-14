@@ -26,7 +26,10 @@ void main() {
   testWidgets('game screen shows signed in user email', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: CaroGameScreen(userEmail: 'player@example.com'),
+        home: CaroGameScreen(
+          userEmail: 'player@example.com',
+          userId: 'dummy-id',
+        ),
       ),
     );
 

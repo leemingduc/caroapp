@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_config.dart';
+import 'models/user_profile.dart';
+import 'models/skin_theme_config.dart';
+import 'services/db_service.dart';
+import 'services/audio_service.dart';
+import 'screens/shop_dialog.dart';
+import 'screens/leaderboard_dialog.dart';
+import 'screens/win_effect_overlay.dart';
 
 // ─── Game Mode & AI Difficulty ────────────────────────────────────────────
 enum GameMode { pvp, pvc }
@@ -67,7 +74,10 @@ class AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        return CaroGameScreen(userEmail: user.email ?? 'Unknown user');
+        return CaroGameScreen(
+          userEmail: user.email ?? 'Unknown user',
+          userId: user.id,
+        );
       },
     );
   }
@@ -341,15 +351,16 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class CaroGameScreen extends StatefulWidget {
-  const CaroGameScreen({super.key, required this.userEmail});
+  const CaroGameScreen({super.key, required this.userEmail, required this.userId});
 
   final String userEmail;
+  final String userId;
 
   @override
   State<CaroGameScreen> createState() => _CaroGameScreenState();
 }
 
-class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProviderStateMixin {
+class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStateMixin {
   // Game Configuration
   int _boardSize = 10; // default 10x10
 
@@ -381,10 +392,19 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
   Point<int>? _lastMove;
   Point<int>? _hoveredCell;
 
-  // Reward points, hint and revive states
-  int _rewardPoints = 100;
+  // Profile state
+  UserProfile? _userProfile;
+  bool _loadingProfile = true;
+
+  // Revive and hint states
   int _reviveCount = 0;
   Point<int>? _hintCell;
+
+  // Win effect state
+  bool _showWinEffect = false;
+  WinEffectLevel? _winEffectLevel;
+  String _winEffectLabel = '';
+  Color _winEffectColor = const Color(0xFF00F2FE);
 
   // AI / Game Mode State
   GameMode _gameMode = GameMode.pvp;
@@ -401,33 +421,42 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
 
   // Helpers for reward system
   int _getReviveCost() {
-    return 20 * (1 << _reviveCount);
+    return 15 + 15 * _reviveCount;
   }
 
-  int _getWinPoints() {
+  int _getWinDiamonds() {
     switch (_aiDifficulty) {
-      case AiDifficulty.easy: return 10;
-      case AiDifficulty.amateur: return 20;
-      case AiDifficulty.medium: return 40;
-      case AiDifficulty.semiPro: return 75;
-      case AiDifficulty.professional: return 150;
+      case AiDifficulty.easy: return 5;
+      case AiDifficulty.amateur: return 10;
+      case AiDifficulty.medium: return 20;
+      case AiDifficulty.semiPro: return 40;
+      case AiDifficulty.professional: return 80;
     }
   }
 
   void _reviveWithPoints() {
     final cost = _getReviveCost();
-    if (_rewardPoints < cost) {
+    final currentDiamonds = _userProfile?.diamonds ?? 0;
+    if (currentDiamonds < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Bạn không đủ điểm thưởng để hồi sinh!'),
+          content: Text('⚠️ Bạn không đủ Kim Cương để hồi sinh!'),
           backgroundColor: Colors.redAccent,
         ),
       );
       return;
     }
 
+    if (_userProfile != null) {
+      final updatedProfile = _userProfile!.copyWith(
+        diamonds: currentDiamonds - cost,
+      );
+      _updateProfile(updatedProfile);
+    }
+
+    AudioService.playReviveSuccess();
+
     setState(() {
-      _rewardPoints -= cost;
       _reviveCount++;
       
       // Revert AI's winning move
@@ -446,7 +475,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✨ Hồi sinh thành công! Sử dụng hết $cost điểm.'),
+        content: Text('✨ Hồi sinh thành công! Đã sử dụng hết $cost Kim Cương 💎'),
         backgroundColor: Colors.green,
       ),
     );
@@ -454,10 +483,11 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
 
   void _useAiHint() {
     if (_gameMode != GameMode.pvc || !_isXTurn || _winner != null || _aiThinking) return;
-    if (_rewardPoints < 15) {
+    final currentDiamonds = _userProfile?.diamonds ?? 0;
+    if (currentDiamonds < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Bạn không đủ điểm thưởng để nhận gợi ý (cần 15 điểm)!'),
+          content: Text('⚠️ Bạn không đủ Kim Cương để nhận gợi ý (cần 10 💎)!'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -477,13 +507,18 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
     );
 
     if (hint != null) {
+      if (_userProfile != null) {
+        final updatedProfile = _userProfile!.copyWith(
+          diamonds: currentDiamonds - 10,
+        );
+        _updateProfile(updatedProfile);
+      }
       setState(() {
-        _rewardPoints -= 15;
         _hintCell = hint;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('💡 Đã hiển thị gợi ý AI! Trừ 15 điểm.'),
+          content: Text('💡 Đã hiển thị gợi ý AI! Trừ 10 Kim Cương 💎'),
           backgroundColor: Colors.amber,
           duration: Duration(seconds: 2),
         ),
@@ -500,7 +535,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
 
   void _showReviveDialog() {
     final cost = _getReviveCost();
-    final canAfford = _rewardPoints >= cost;
+    final currentDiamonds = _userProfile?.diamonds ?? 0;
+    final canAfford = currentDiamonds >= cost;
+
+    AudioService.playReviveAlert();
 
     showDialog(
       context: context,
@@ -540,9 +578,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
                   children: [
                     const Text('Phí hồi sinh:', style: TextStyle(color: Colors.white60, fontSize: 13)),
                     Text(
-                      '$cost Điểm',
+                      '$cost Kim Cương 💎',
                       style: TextStyle(
-                        color: canAfford ? const Color(0xFFFFB300) : const Color(0xFFF43F5E),
+                        color: canAfford ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E),
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
@@ -552,7 +590,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
               ),
               const SizedBox(height: 8),
               Text(
-                'Điểm hiện tại của bạn: $_rewardPoints điểm',
+                'Số dư của bạn: $currentDiamonds Kim Cương 💎',
                 style: TextStyle(
                   color: canAfford ? Colors.white54 : const Color(0xFFF43F5E),
                   fontSize: 12,
@@ -579,7 +617,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
                 disabledForegroundColor: Colors.white30,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text(canAfford ? 'Hồi sinh ngay' : 'Không đủ điểm'),
+              child: Text(canAfford ? 'Hồi sinh ngay' : 'Không đủ Kim Cương'),
             ),
           ],
         );
@@ -594,6 +632,50 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final profile = await DbService.getProfile(widget.userId, widget.userEmail);
+      setState(() {
+        _userProfile = profile;
+        _loadingProfile = false;
+      });
+    } catch (e) {
+      setState(() {
+        _loadingProfile = false;
+      });
+    }
+  }
+
+  Future<void> _updateProfile(UserProfile updatedProfile) async {
+    setState(() {
+      _userProfile = updatedProfile;
+    });
+    await DbService.saveProfile(updatedProfile);
+  }
+
+  void _openShop() {
+    if (_userProfile == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => ShopDialog(
+        userProfile: _userProfile!,
+        onProfileUpdated: (updatedProfile) {
+          setState(() {
+            _userProfile = updatedProfile;
+          });
+        },
+      ),
+    );
+  }
+
+  void _openLeaderboard() {
+    showDialog(
+      context: context,
+      builder: (context) => const LeaderboardDialog(),
+    );
   }
 
   @override
@@ -636,11 +718,16 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       _aiThinking = false;
       _reviveCount = 0;
       _hintCell = null;
+      _showWinEffect = false;
+      _winEffectLevel = null;
       if (clearScore) {
         _scoreX = 0;
         _scoreO = 0;
         _scoreDraws = 0;
-        _rewardPoints = 100;
+        if (_userProfile != null) {
+          final updatedProfile = _userProfile!.copyWith(diamonds: 100);
+          _updateProfile(updatedProfile);
+        }
       }
     });
     
@@ -658,6 +745,8 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
     if (_gameMode == GameMode.pvc && !_isXTurn) return;
 
     bool shouldTriggerAI = false;
+    String? winnerAfterMove;
+
     setState(() {
       _hintCell = null; // Clear hint on move
       final actualPlayer = (_gameMode == GameMode.pvp) ? (_isXTurn ? 'X' : 'O') : 'X';
@@ -666,21 +755,35 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       _moveHistory.add(cell);
 
       HapticFeedback.lightImpact();
+      // Play placement sound
+      final activeSkin = _userProfile?.selectedSkin ?? 'default';
+      if (actualPlayer == 'X') {
+        AudioService.playPlaceX(activeSkin);
+      } else {
+        AudioService.playPlaceO(activeSkin);
+      }
 
       final winLine = _checkWin(r, c, actualPlayer);
       if (winLine != null) {
         _winner = actualPlayer;
         _winningLine = winLine;
+        winnerAfterMove = actualPlayer;
         if (actualPlayer == 'X') {
           _scoreX++;
           if (_gameMode == GameMode.pvc) {
-            final winPts = _getWinPoints();
-            _rewardPoints += winPts;
+            final winDia = _getWinDiamonds();
+            if (_userProfile != null) {
+              final updatedProfile = _userProfile!.copyWith(
+                diamonds: _userProfile!.diamonds + winDia,
+                winsPvc: _userProfile!.winsPvc + 1,
+              );
+              _updateProfile(updatedProfile);
+            }
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('🎉 Chiến thắng! Bạn nhận được +$winPts điểm thưởng.'),
-                  backgroundColor: Colors.amber[800],
+                  content: Text('🎉 Chiến thắng! Bạn nhận được +$winDia Kim Cương 💎'),
+                  backgroundColor: const Color(0xFF00F2FE),
                   duration: const Duration(seconds: 3),
                 ),
               );
@@ -688,11 +791,24 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
           }
         } else {
           _scoreO++;
+          if (_gameMode == GameMode.pvc && _userProfile != null) {
+            final updatedProfile = _userProfile!.copyWith(
+              lossesPvc: _userProfile!.lossesPvc + 1,
+            );
+            _updateProfile(updatedProfile);
+          }
         }
       } else {
         if (_board.length == _boardSize * _boardSize) {
           _winner = 'Draw';
+          winnerAfterMove = 'Draw';
           _scoreDraws++;
+          if (_gameMode == GameMode.pvc && _userProfile != null) {
+            final updatedProfile = _userProfile!.copyWith(
+              draws: _userProfile!.draws + 1,
+            );
+            _updateProfile(updatedProfile);
+          }
         } else {
           _isXTurn = !_isXTurn;
           if (_gameMode == GameMode.pvc && !_isXTurn) {
@@ -704,7 +820,77 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       if (_hoveredCell == cell) _hoveredCell = null;
     });
 
+    // Trigger audio & visual effects AFTER setState
+    if (winnerAfterMove != null) {
+      _handleWinEffect(winnerAfterMove!);
+    }
+
     if (shouldTriggerAI) _triggerAiMove();
+  }
+
+  /// Handle win/draw audio + visual effects
+  void _handleWinEffect(String winner) {
+    if (winner == 'Draw') {
+      AudioService.playDraw();
+      return;
+    }
+
+    if (winner == 'X' && _gameMode == GameMode.pvc) {
+      // Player wins vs AI — play win sound based on difficulty
+      final effectLevel = _aiDifficultyToEffectLevel();
+      _playWinSoundForLevel(effectLevel);
+      AudioService.playDiamond();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _showWinEffect = true;
+          _winEffectLevel = effectLevel;
+          _winEffectLabel = 'Người chơi X thắng!';
+          _winEffectColor = const Color(0xFF00F2FE);
+        });
+      });
+    } else if (winner == 'X' && _gameMode == GameMode.pvp) {
+      AudioService.playWinEasy();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _showWinEffect = true;
+          _winEffectLevel = WinEffectLevel.easy;
+          _winEffectLabel = 'Người chơi X thắng!';
+          _winEffectColor = const Color(0xFF00F2FE);
+        });
+      });
+    } else if (winner == 'O' && _gameMode == GameMode.pvp) {
+      AudioService.playWinAmateur();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _showWinEffect = true;
+          _winEffectLevel = WinEffectLevel.amateur;
+          _winEffectLabel = 'Người chơi O thắng!';
+          _winEffectColor = const Color(0xFFF43F5E);
+        });
+      });
+    } else if (winner == 'O' && _gameMode == GameMode.pvc) {
+      AudioService.playLose();
+    }
+  }
+
+  WinEffectLevel _aiDifficultyToEffectLevel() {
+    switch (_aiDifficulty) {
+      case AiDifficulty.easy:         return WinEffectLevel.easy;
+      case AiDifficulty.amateur:      return WinEffectLevel.amateur;
+      case AiDifficulty.medium:       return WinEffectLevel.medium;
+      case AiDifficulty.semiPro:      return WinEffectLevel.semiPro;
+      case AiDifficulty.professional: return WinEffectLevel.professional;
+    }
+  }
+
+  void _playWinSoundForLevel(WinEffectLevel level) {
+    switch (level) {
+      case WinEffectLevel.easy:         AudioService.playWinEasy(); break;
+      case WinEffectLevel.amateur:      AudioService.playWinAmateur(); break;
+      case WinEffectLevel.medium:       AudioService.playWinMedium(); break;
+      case WinEffectLevel.semiPro:      AudioService.playWinSemiPro(); break;
+      case WinEffectLevel.professional: AudioService.playWinPro(); break;
+    }
   }
 
   // Trigger AI move asynchronously
@@ -741,6 +927,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       return;
     }
 
+    String? winnerAfterAi;
     setState(() {
       _hintCell = null; // Clear hint on move
       _aiThinking = false;
@@ -748,21 +935,43 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       _lastMove = move;
       _moveHistory.add(move);
 
+      AudioService.playPlaceO(_userProfile?.selectedSkin ?? 'default');
+
       final winLine = _checkWin(move.x, move.y, 'O');
       if (winLine != null) {
         _winner = 'O';
         _winningLine = winLine;
         _scoreO++;
+        winnerAfterAi = 'O';
+        if (_gameMode == GameMode.pvc && _userProfile != null) {
+          final updatedProfile = _userProfile!.copyWith(
+            lossesPvc: _userProfile!.lossesPvc + 1,
+          );
+          _updateProfile(updatedProfile);
+        }
       } else if (_board.length == _boardSize * _boardSize) {
         _winner = 'Draw';
+        winnerAfterAi = 'Draw';
         _scoreDraws++;
+        if (_gameMode == GameMode.pvc && _userProfile != null) {
+          final updatedProfile = _userProfile!.copyWith(
+            draws: _userProfile!.draws + 1,
+          );
+          _updateProfile(updatedProfile);
+        }
       } else {
         _isXTurn = true;
       }
     });
 
+    if (winnerAfterAi != null) {
+      _handleWinEffect(winnerAfterAi!);
+    }
+
     if (_winner == 'O' && _gameMode == GameMode.pvc) {
-      _showReviveDialog();
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) _showReviveDialog();
+      });
     }
   }
 
@@ -997,18 +1206,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     final Size size = MediaQuery.of(context).size;
     final bool isDesktop = size.width > 950;
+    final currentTheme = ThemeConfig.getTheme(_userProfile?.selectedTheme ?? 'default');
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F172A), // Dark slate
-              Color(0xFF1E293B), // Medium slate
-              Color(0xFF020617), // Rich dark blue/black
-            ],
+            colors: currentTheme.bgGradient,
           ),
         ),
         child: SafeArea(
@@ -1054,6 +1260,22 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
           right: 12,
           child: _buildUserBadge(),
         ),
+        // Win effect overlay
+        if (_showWinEffect && _winEffectLevel != null)
+          Positioned.fill(
+            child: WinEffectOverlay(
+              level: _winEffectLevel!,
+              winnerLabel: _winEffectLabel,
+              winnerColor: _winEffectColor,
+              onComplete: () {
+                if (mounted) {
+                  setState(() {
+                    _showWinEffect = false;
+                  });
+                }
+              },
+            ),
+          ),
       ],
     );
   }
@@ -1165,11 +1387,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
             _buildStatusCard(),
             const SizedBox(height: 24),
 
-            // Points Section (only show in PVC mode)
-            if (_gameMode == GameMode.pvc) ...[
-              _buildPointsCard(),
-              const SizedBox(height: 24),
-            ],
+            // Points Section (always show to access Shop & Leaderboard)
+            _buildPointsCard(),
+            const SizedBox(height: 24),
   
             // Scoreboard Box
             _buildScoreboardCard(),
@@ -1295,43 +1515,65 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Row for Points and AI Hint on mobile (PvC mode only)
-          if (_gameMode == GameMode.pvc) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Points display
-                Row(
-                  children: [
-                    const Icon(Icons.stars_rounded, color: Color(0xFFFFB300), size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$_rewardPoints điểm',
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+          // Row for Points, Shop and AI Hint on mobile (all modes)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Points & Shop trigger
+              GestureDetector(
+                onTap: _loadingProfile ? null : _openShop,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00F2FE).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF00F2FE).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('💎 ', style: TextStyle(fontSize: 12)),
+                      Text(
+                        '${_userProfile?.diamonds ?? 100}',
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.shopping_bag_outlined, color: Color(0xFF00F2FE), size: 14),
+                    ],
+                  ),
+                ),
+              ),
+              // Leaderboard & AI Hint button
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFB300), size: 20),
+                    onPressed: _openLeaderboard,
+                    tooltip: 'Bảng xếp hạng',
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  if (_gameMode == GameMode.pvc && _winner == null && !_aiThinking && _isXTurn) ...[
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: (_userProfile?.diamonds ?? 100) >= 10 ? _useAiHint : null,
+                      icon: const Icon(Icons.lightbulb_outline_rounded, size: 12),
+                      label: const Text('💡 Gợi ý AI (10đ)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFB300),
+                        foregroundColor: Colors.black,
+                        disabledBackgroundColor: Colors.white10,
+                        disabledForegroundColor: Colors.white24,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                      ),
                     ),
                   ],
-                ),
-                // AI Hint button
-                if (_winner == null && !_aiThinking && _isXTurn)
-                  ElevatedButton.icon(
-                    onPressed: _rewardPoints >= 15 ? _useAiHint : null,
-                    icon: const Icon(Icons.lightbulb_outline_rounded, size: 12),
-                    label: const Text('💡 Gợi ý AI (15đ)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFB300),
-                      foregroundColor: Colors.black,
-                      disabledBackgroundColor: Colors.white10,
-                      disabledForegroundColor: Colors.white24,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // Row containing scores & settings toggles
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1542,10 +1784,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
           if (_winner == 'O' && _gameMode == GameMode.pvc) ...[
             const SizedBox(height: 14),
             ElevatedButton.icon(
-              onPressed: _rewardPoints >= _getReviveCost() ? _reviveWithPoints : null,
+              onPressed: (_userProfile?.diamonds ?? 0) >= _getReviveCost() ? _reviveWithPoints : null,
               icon: const Icon(Icons.autorenew_rounded),
               label: Text(
-                'HỒI SINH BẰNG ĐIỂM (Tốn ${_getReviveCost()}đ)',
+                'HỒI SINH BẰNG KIM CƯƠNG (Tốn ${_getReviveCost()} 💎)',
                 style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5, fontSize: 13),
               ),
               style: ElevatedButton.styleFrom(
@@ -1558,11 +1800,11 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
                 elevation: 4,
               ),
             ),
-            if (_rewardPoints < _getReviveCost()) ...[
+            if ((_userProfile?.diamonds ?? 0) < _getReviveCost()) ...[
               const SizedBox(height: 6),
               const Center(
                 child: Text(
-                  'Không đủ điểm thưởng để hồi sinh',
+                  'Không đủ Kim Cương để hồi sinh',
                   style: TextStyle(color: Color(0xFFF43F5E), fontSize: 11, fontWeight: FontWeight.w500),
                 ),
               ),
@@ -1574,25 +1816,26 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
   }
 
   Widget _buildPointsCard() {
+    final currentDiamonds = _userProfile?.diamonds ?? 100;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFFFFB300).withOpacity(0.08),
-            const Color(0xFFFFA000).withOpacity(0.03),
+            const Color(0xFF00F2FE).withOpacity(0.08),
+            const Color(0xFF00F2FE).withOpacity(0.02),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFFFB300).withOpacity(0.35),
+          color: const Color(0xFF00F2FE).withOpacity(0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFFFB300).withOpacity(0.05),
+            color: const Color(0xFF00F2FE).withOpacity(0.03),
             blurRadius: 12,
             spreadRadius: 1,
           )
@@ -1609,20 +1852,19 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
                   Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFB300).withOpacity(0.15),
+                      color: const Color(0xFF00F2FE).withOpacity(0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.stars_rounded,
-                      color: Color(0xFFFFB300),
-                      size: 20,
+                    child: const Text(
+                      '💎',
+                      style: TextStyle(fontSize: 14),
                     ),
                   ),
                   const SizedBox(width: 10),
                   const Text(
-                    'ĐIỂM THƯỞNG',
+                    'KIM CƯƠNG',
                     style: TextStyle(
-                      color: Color(0xFFFFB300),
+                      color: Color(0xFF00F2FE),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.5,
@@ -1632,15 +1874,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
               ),
               if (_gameMode == GameMode.pvc && _winner == null && !_aiThinking && _isXTurn)
                 ElevatedButton.icon(
-                  onPressed: _rewardPoints >= 15 ? _useAiHint : null,
-                  icon: const Icon(Icons.lightbulb_outline_rounded, size: 14),
-                  label: const Text('💡 Gợi ý (15đ)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: currentDiamonds >= 10 ? _useAiHint : null,
+                  icon: const Icon(Icons.lightbulb_outline_rounded, size: 13),
+                  label: const Text('💡 Gợi ý (10đ)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFB300),
                     foregroundColor: Colors.black,
                     disabledBackgroundColor: Colors.white10,
                     disabledForegroundColor: Colors.white24,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1650,13 +1892,41 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
           ),
           const SizedBox(height: 12),
           Text(
-            '$_rewardPoints điểm',
+            '$currentDiamonds 💎',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
               color: Colors.white,
               letterSpacing: 0.5,
             ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            height: 1,
+            color: Colors.white.withOpacity(0.06),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              TextButton.icon(
+                onPressed: _loadingProfile ? null : _openShop,
+                icon: const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF00F2FE)),
+                label: const Text('Cửa hàng', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              ),
+              Container(
+                width: 1.5,
+                height: 16,
+                color: Colors.white.withOpacity(0.08),
+              ),
+              TextButton.icon(
+                onPressed: _openLeaderboard,
+                icon: const Icon(Icons.emoji_events_rounded, size: 16, color: Color(0xFFFFB300)),
+                label: const Text('Bảng xếp hạng', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              ),
+            ],
           ),
         ],
       ),
@@ -2104,14 +2374,16 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
 
   Widget _buildBoardGrid() {
     final double sizePx = _boardSize * _cellSize;
+    final currentTheme = ThemeConfig.getTheme(_userProfile?.selectedTheme ?? 'default');
+    final currentSkin = SkinConfig.getSkin(_userProfile?.selectedSkin ?? 'default');
 
     return Container(
       width: sizePx + 4,
       height: sizePx + 4,
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withOpacity(0.85),
+        color: currentTheme.boardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.12), width: 2),
+        border: Border.all(color: currentTheme.boardBorderColor, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.6),
@@ -2144,6 +2416,8 @@ class _CaroGameScreenState extends State<CaroGameScreen> with SingleTickerProvid
                   aiThinking: _aiThinking,
                   winner: _winner,
                   gameMode: _gameMode,
+                  skin: currentSkin,
+                  gridLineColor: currentTheme.gridLineColor,
                 );
               }),
             );
@@ -2373,7 +2647,15 @@ class CellParticle {
   final double angle;
   final double speed;
   final double maxRadius;
-  CellParticle({required this.angle, required this.speed, required this.maxRadius});
+  final double size;
+  final double phase; // for varied animation timing
+  CellParticle({
+    required this.angle,
+    required this.speed,
+    required this.maxRadius,
+    required this.size,
+    required this.phase,
+  });
 }
 
 class CellParticlePainter extends CustomPainter {
@@ -2390,19 +2672,62 @@ class CellParticlePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (progress <= 0 || progress >= 1.0) return;
-    
-    final paint = Paint()
-      ..color = color.withOpacity(1.0 - progress)
-      ..style = PaintingStyle.fill;
-      
+
     final center = Offset(size.width / 2, size.height / 2);
-    
+    final eased = Curves.easeOut.transform(progress);
+    final fadeOut = 1.0 - eased;
+
+    // ── 1. Ripple ring ────────────────────────────────────────────────────
+    if (progress < 0.7) {
+      final ringProgress = progress / 0.7;
+      final ringRadius = 6.0 + ringProgress * (size.width / 2 - 4);
+      final ringAlpha = (fadeOut * 180).round().clamp(0, 255);
+      final ringPaint = Paint()
+        ..color = color.withAlpha(ringAlpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0 * (1.0 - ringProgress)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 * (1.0 - ringProgress));
+      canvas.drawCircle(center, ringRadius, ringPaint);
+    }
+
+    // ── 2. Glow orb burst ────────────────────────────────────────────────
+    final glowPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    final dotPaint = Paint()..style = PaintingStyle.fill;
+
     for (final p in particles) {
-      final distance = p.maxRadius * progress * p.speed;
+      final t = (progress + p.phase * 0.3).clamp(0.0, 1.0);
+      final distance = p.maxRadius * Curves.easeOut.transform(t) * p.speed;
       final x = center.dx + cos(p.angle) * distance;
       final y = center.dy + sin(p.angle) * distance;
-      final sizeFactor = 3.0 * (1.0 - progress);
-      canvas.drawCircle(Offset(x, y), sizeFactor, paint);
+
+      final alpha = ((1.0 - t) * 220).round().clamp(0, 255);
+      final particleSize = p.size * (1.0 - t * 0.6);
+
+      // Glow
+      glowPaint.color = color.withAlpha((alpha * 0.4).round().clamp(0, 255));
+      canvas.drawCircle(Offset(x, y), particleSize * 1.8, glowPaint);
+
+      // Core dot
+      dotPaint.color = color.withAlpha(alpha);
+      canvas.drawCircle(Offset(x, y), particleSize, dotPaint);
+    }
+
+    // ── 3. Star sparks at early phase ────────────────────────────────────
+    if (progress < 0.4) {
+      final sparkPaint = Paint()
+        ..color = Colors.white.withAlpha(((1.0 - progress / 0.4) * 180).round().clamp(0, 255))
+        ..style = PaintingStyle.fill;
+      const sparkCount = 4;
+      for (int i = 0; i < sparkCount; i++) {
+        final angle = (i / sparkCount) * pi * 2 + progress * pi;
+        final dist = 4 + progress * 12;
+        final sx = center.dx + cos(angle) * dist;
+        final sy = center.dy + sin(angle) * dist;
+        canvas.drawCircle(Offset(sx, sy), 1.5 * (1 - progress / 0.4), sparkPaint);
+      }
     }
   }
 
@@ -2425,6 +2750,8 @@ class CaroCellWidget extends StatefulWidget {
   final bool aiThinking;
   final String? winner;
   final GameMode gameMode;
+  final SkinConfig skin;
+  final Color gridLineColor;
 
   const CaroCellWidget({
     super.key,
@@ -2440,6 +2767,8 @@ class CaroCellWidget extends StatefulWidget {
     required this.aiThinking,
     required this.winner,
     required this.gameMode,
+    required this.skin,
+    required this.gridLineColor,
   });
 
   @override
@@ -2454,11 +2783,14 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
   late Animation<double> _hintGlowAnimation;
   bool _hovered = false;
 
-  final List<CellParticle> _particles = List.generate(8, (index) {
-    final angle = index * (2 * pi / 8) + (Random().nextDouble() * 0.4 - 0.2);
-    final speed = 0.6 + Random().nextDouble() * 0.4;
-    final maxRadius = 25.0 + Random().nextDouble() * 15.0;
-    return CellParticle(angle: angle, speed: speed, maxRadius: maxRadius);
+  final List<CellParticle> _particles = List.generate(12, (index) {
+    final rng = Random();
+    final angle = index * (2 * pi / 12) + (rng.nextDouble() * 0.5 - 0.25);
+    final speed = 0.5 + rng.nextDouble() * 0.6;
+    final maxRadius = 22.0 + rng.nextDouble() * 18.0;
+    final size = 2.0 + rng.nextDouble() * 2.5;
+    final phase = rng.nextDouble() * 0.2;
+    return CellParticle(angle: angle, speed: speed, maxRadius: maxRadius, size: size, phase: phase);
   });
 
   @override
@@ -2542,7 +2874,7 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
       cellBorder = Border.all(color: Colors.white.withOpacity(0.12), width: 0.5);
     } else {
       cellColor = Colors.transparent;
-      cellBorder = Border.all(color: Colors.white.withOpacity(0.06), width: 0.5);
+      cellBorder = Border.all(color: widget.gridLineColor, width: 0.5);
     }
 
     final canInteract = widget.winner == null && mark == null &&
@@ -2565,7 +2897,7 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
                 size: Size(widget.cellSize, widget.cellSize),
                 painter: CellParticlePainter(
                   progress: _particleController.value,
-                  color: mark == 'X' ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E),
+                  color: mark == 'O' ? widget.skin.oColor : widget.skin.xColor,
                   particles: _particles,
                 ),
               );
@@ -2623,15 +2955,10 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
         style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w900,
-          color: isWinning ? Colors.greenAccent : const Color(0xFF00F2FE),
-          shadows: [
-            Shadow(
-              color: isWinning
-                  ? Colors.greenAccent.withOpacity(0.8)
-                  : const Color(0xFF00F2FE).withOpacity(0.6),
-              blurRadius: isWinning ? 14 : 6,
-            )
-          ],
+          color: isWinning ? Colors.greenAccent : widget.skin.xColor,
+          shadows: isWinning
+              ? [const Shadow(color: Colors.greenAccent, blurRadius: 14)]
+              : widget.skin.xShadow,
         ),
       );
     } else {
@@ -2640,15 +2967,10 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
         style: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w900,
-          color: isWinning ? Colors.greenAccent : const Color(0xFFF43F5E),
-          shadows: [
-            Shadow(
-              color: isWinning
-                  ? Colors.greenAccent.withOpacity(0.8)
-                  : const Color(0xFFF43F5E).withOpacity(0.6),
-              blurRadius: isWinning ? 14 : 6,
-            )
-          ],
+          color: isWinning ? Colors.greenAccent : widget.skin.oColor,
+          shadows: isWinning
+              ? [const Shadow(color: Colors.greenAccent, blurRadius: 14)]
+              : widget.skin.oShadow,
         ),
       );
     }
