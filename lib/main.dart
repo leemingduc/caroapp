@@ -28,15 +28,7 @@ extension AiDifficultyExt on AiDifficulty {
     }
   }
 
-  String get label {
-    switch (this) {
-      case AiDifficulty.easy:         return '🎮 Dễ';
-      case AiDifficulty.amateur:      return '🏠 Nghiệp dư';
-      case AiDifficulty.medium:       return '⚔️ Trung bình';
-      case AiDifficulty.semiPro:      return '🎯 Bán chuyên';
-      case AiDifficulty.professional: return '🏆 Chuyên nghiệp';
-    }
-  }
+  String get label => LanguageManager.instance.text.difficulty(key);
 }
 
 void main() async {
@@ -211,208 +203,229 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F172A),
-              Color(0xFF1E293B),
-              Color(0xFF020617),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Card(
-                      color: const Color(0xFF111827),
-                      elevation: 16,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: Colors.white.withOpacity(0.08)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(28),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.grid_4x4_rounded,
-                                color: Color(0xFF00F2FE),
-                                size: 44,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                LanguageManager.instance.text.appTitle,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 28),
-                              SegmentedButton<bool>(
-                                segments: [
-                                  ButtonSegment<bool>(
-                                    value: false,
-                                    label: Text(LanguageManager.instance.text.signIn),
-                                    icon: const Icon(Icons.login_rounded),
+    return ValueListenableBuilder<AppLanguage>(
+      valueListenable: LanguageManager.instance.languageNotifier,
+      builder: (context, language, child) {
+        return Scaffold(
+          body: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF0F172A),
+                  Color(0xFF1E293B),
+                  Color(0xFF020617),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Stack(
+                children: [
+                  Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: Card(
+                          color: const Color(0xFF111827),
+                          elevation: 16,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: BorderSide(color: Colors.white.withOpacity(0.08)),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(28),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.grid_4x4_rounded,
+                                    color: Color(0xFF00F2FE),
+                                    size: 44,
                                   ),
-                                  ButtonSegment<bool>(
-                                    value: true,
-                                    label: Text(LanguageManager.instance.text.signUp),
-                                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                                  ),
-                                ],
-                                selected: {_isRegisterMode},
-                                onSelectionChanged: _isLoading
-                                    ? null
-                                    : (selection) {
-                                        final nextMode = selection.first;
-                                        if (nextMode != _isRegisterMode) {
-                                          _toggleAuthMode();
-                                        }
-                                      },
-                              ),
-                              const SizedBox(height: 20),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: LanguageManager.instance.text.email,
-                                  prefixIcon: const Icon(Icons.mail_outline_rounded),
-                                  border: const OutlineInputBorder(),
-                                ),
-                                validator: (value) {
-                                  final email = value?.trim() ?? '';
-                                  if (email.isEmpty) return LanguageManager.instance.text.emailRequired;
-                                  if (!email.contains('@')) return LanguageManager.instance.text.emailInvalid;
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                decoration: InputDecoration(
-                                  labelText: LanguageManager.instance.text.password,
-                                  prefixIcon: const Icon(Icons.lock_outline_rounded),
-                                  border: const OutlineInputBorder(),
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscurePassword 
-                                        ? LanguageManager.instance.text.showPassword 
-                                        : LanguageManager.instance.text.hidePassword,
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    LanguageManager.instance.text.appTitle,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.2,
                                     ),
-                                    onPressed: () {
-                                      setState(() => _obscurePassword = !_obscurePassword);
+                                  ),
+                                  const SizedBox(height: 28),
+                                  SegmentedButton<bool>(
+                                    segments: [
+                                      ButtonSegment<bool>(
+                                        value: false,
+                                        label: Text(LanguageManager.instance.text.signIn),
+                                        icon: const Icon(Icons.login_rounded),
+                                      ),
+                                      ButtonSegment<bool>(
+                                        value: true,
+                                        label: Text(LanguageManager.instance.text.signUp),
+                                        icon: const Icon(Icons.person_add_alt_1_rounded),
+                                      ),
+                                    ],
+                                    selected: {_isRegisterMode},
+                                    onSelectionChanged: _isLoading
+                                        ? null
+                                        : (selection) {
+                                            final nextMode = selection.first;
+                                            if (nextMode != _isRegisterMode) {
+                                              _toggleAuthMode();
+                                            }
+                                          },
+                                  ),
+                                  const SizedBox(height: 20),
+                                  TextFormField(
+                                    controller: _emailController,
+                                    keyboardType: TextInputType.emailAddress,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: InputDecoration(
+                                      labelText: LanguageManager.instance.text.email,
+                                      prefixIcon: const Icon(Icons.mail_outline_rounded),
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    validator: (value) {
+                                      final email = value?.trim() ?? '';
+                                      if (email.isEmpty) return LanguageManager.instance.text.emailRequired;
+                                      if (!email.contains('@')) return LanguageManager.instance.text.emailInvalid;
+                                      return null;
                                     },
                                   ),
-                                ),
-                                validator: (value) {
-                                  if ((value ?? '').isEmpty) return LanguageManager.instance.text.passwordRequired;
-                                  return null;
-                                },
-                              ),
-                              if (_isRegisterMode) ...[
-                                const SizedBox(height: 16),
-                                TextFormField(
-                                  controller: _confirmPasswordController,
-                                  obscureText: _obscurePassword,
-                                  textInputAction: TextInputAction.done,
-                                  onFieldSubmitted: (_) => _submit(),
-                                  decoration: InputDecoration(
-                                    labelText: LanguageManager.instance.text.confirmPassword,
-                                    prefixIcon: const Icon(Icons.verified_user_outlined),
-                                    border: const OutlineInputBorder(),
+                                  const SizedBox(height: 16),
+                                  TextFormField(
+                                    controller: _passwordController,
+                                    obscureText: _obscurePassword,
+                                    textInputAction: TextInputAction.done,
+                                    onFieldSubmitted: (_) => _submit(),
+                                    decoration: InputDecoration(
+                                      labelText: LanguageManager.instance.text.password,
+                                      prefixIcon: const Icon(Icons.lock_outline_rounded),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscurePassword 
+                                            ? LanguageManager.instance.text.showPassword 
+                                            : LanguageManager.instance.text.hidePassword,
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscurePassword = !_obscurePassword;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                    validator: (value) {
+                                      if ((value ?? '').isEmpty) return LanguageManager.instance.text.passwordRequired;
+                                      return null;
+                                    },
                                   ),
-                                  validator: (value) {
-                                    if (!_isRegisterMode) return null;
-                                    if ((value ?? '').isEmpty) {
-                                      return LanguageManager.instance.text.confirmPasswordRequired;
-                                    }
-                                    if (value != _passwordController.text) {
-                                      return LanguageManager.instance.text.passwordMismatch;
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
-                              const SizedBox(height: 24),
-                              FilledButton.icon(
-                                onPressed: _isLoading ? null : _submit,
-                                icon: _isLoading
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : Icon(_isRegisterMode
-                                        ? Icons.person_add_alt_1_rounded
-                                        : Icons.login_rounded),
-                                label: Text(_isRegisterMode 
-                                    ? LanguageManager.instance.text.signUpAccount 
-                                    : LanguageManager.instance.text.signIn),
+                                  if (_isRegisterMode) ...[
+                                    const SizedBox(height: 16),
+                                    TextFormField(
+                                      controller: _confirmPasswordController,
+                                      obscureText: _obscurePassword,
+                                      textInputAction: TextInputAction.done,
+                                      onFieldSubmitted: (_) => _submit(),
+                                      decoration: InputDecoration(
+                                        labelText: LanguageManager.instance.text.confirmPassword,
+                                        prefixIcon: const Icon(Icons.lock_outline_rounded),
+                                        border: const OutlineInputBorder(),
+                                      ),
+                                      validator: (value) {
+                                        if ((value ?? '').isEmpty) {
+                                          return LanguageManager.instance.text.confirmPasswordRequired;
+                                        }
+                                        if (value != _passwordController.text) {
+                                          return LanguageManager.instance.text.passwordMismatch;
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ],
+                                  const SizedBox(height: 24),
+                                  ElevatedButton(
+                                    onPressed: _isLoading ? null : _submit,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF00F2FE),
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      elevation: 2,
+                                    ),
+                                    child: _isLoading
+                                        ? const SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                                            ),
+                                          )
+                                        : Text(
+                                            _isRegisterMode
+                                                ? LanguageManager.instance.text.signUpAccount
+                                                : LanguageManager.instance.text.signIn,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextButton(
+                                    onPressed: _isLoading ? null : _toggleAuthMode,
+                                    child: Text(
+                                      _isRegisterMode
+                                          ? LanguageManager.instance.text.alreadyHaveAccount
+                                          : LanguageManager.instance.text.noAccountYet,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 12),
-                              TextButton(
-                                onPressed: _isLoading ? null : _toggleAuthMode,
-                                child: Text(
-                                  _isRegisterMode
-                                      ? LanguageManager.instance.text.alreadyHaveAccount
-                                      : LanguageManager.instance.text.noAccountYet,
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111827).withOpacity(0.8),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  Positioned(
+                    top: 16,
+                    right: 16,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827).withOpacity(0.8),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.08)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildLangButton(AppLanguage.vi, 'VI'),
+                          Container(width: 1, height: 16, color: Colors.white12),
+                          _buildLangButton(AppLanguage.en, 'EN'),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _buildLangButton(AppLanguage.vi, 'VI'),
-                      Container(width: 1, height: 16, color: Colors.white12),
-                      _buildLangButton(AppLanguage.en, 'EN'),
-                    ],
-                  ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -916,7 +929,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('🎉 Chiến thắng! Bạn nhận được +$winDia Kim Cương 💎'),
+                  content: Text(LanguageManager.instance.text.winReward(winDia)),
                   backgroundColor: const Color(0xFF00F2FE),
                   duration: const Duration(seconds: 3),
                 ),
@@ -972,7 +985,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         setState(() {
           _showWinEffect = true;
           _winEffectLevel = effectLevel;
-          _winEffectLabel = 'Người chơi X thắng!';
+          _winEffectLabel = LanguageManager.instance.text.playerWins('X');
           _winEffectColor = const Color(0xFF00F2FE);
         });
       });
@@ -982,7 +995,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         setState(() {
           _showWinEffect = true;
           _winEffectLevel = WinEffectLevel.easy;
-          _winEffectLabel = 'Người chơi X thắng!';
+          _winEffectLabel = LanguageManager.instance.text.playerWins('X');
           _winEffectColor = const Color(0xFF00F2FE);
         });
       });
@@ -992,7 +1005,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         setState(() {
           _showWinEffect = true;
           _winEffectLevel = WinEffectLevel.amateur;
-          _winEffectLabel = 'Người chơi O thắng!';
+          _winEffectLabel = LanguageManager.instance.text.playerWins('O');
           _winEffectColor = const Color(0xFFF43F5E);
         });
       });
@@ -1241,9 +1254,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         return AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Kích thước tự chọn',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          title: Text(
+            LanguageManager.instance.text.customSizeTitle,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
           ),
           content: Form(
             key: formKey,
@@ -1251,9 +1264,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Nhập kích thước bàn cờ (từ 3 đến 35):',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                Text(
+                  LanguageManager.instance.text.customSizePrompt,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -1262,9 +1275,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   style: const TextStyle(color: Colors.white),
                   autofocus: true,
                   decoration: InputDecoration(
-                    labelText: 'Kích thước (3 - 35)',
+                    labelText: LanguageManager.instance.text.customSizeLabel,
                     labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                    hintText: 'Nhập số từ 3 đến 35',
+                    hintText: LanguageManager.instance.text.customSizeHint,
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                     enabledBorder: OutlineInputBorder(
                       borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
@@ -1288,11 +1301,11 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   ],
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập một số';
+                      return LanguageManager.instance.text.numberRequired;
                     }
                     final size = int.tryParse(value);
                     if (size == null || size < 3 || size > 35) {
-                      return 'Kích thước phải từ 3 đến 35';
+                      return LanguageManager.instance.text.sizeInvalid;
                     }
                     return null;
                   },
@@ -1303,7 +1316,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Hủy', style: TextStyle(color: Colors.white54)),
+              child: Text(LanguageManager.instance.text.cancel, style: const TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1318,7 +1331,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 foregroundColor: Colors.black,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text('Xác nhận'),
+              child: Text(LanguageManager.instance.text.confirm),
             ),
           ],
         );
@@ -1328,48 +1341,53 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    final bool isDesktop = size.width > 950;
-    final currentTheme = ThemeConfig.getTheme(_userProfile?.selectedTheme ?? 'default');
+    return ValueListenableBuilder<AppLanguage>(
+      valueListenable: LanguageManager.instance.languageNotifier,
+      builder: (context, language, child) {
+        final Size size = MediaQuery.of(context).size;
+        final bool isDesktop = size.width > 950;
+        final currentTheme = ThemeConfig.getTheme(_userProfile?.selectedTheme ?? 'default');
 
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: currentTheme.bgGradient,
+        return Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: currentTheme.bgGradient,
+              ),
+            ),
+            child: SafeArea(
+              child: isDesktop 
+                  ? Row(
+                      children: [
+                        // Sidebar Controls
+                        SizedBox(
+                          width: 380,
+                          child: _buildSidebar(context),
+                        ),
+                        // Main Board Area
+                        Expanded(
+                          child: _buildGameArea(),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        // Mobile Header & Score
+                        _buildMobileHeader(),
+                        // Main Board Area
+                        Expanded(
+                          child: _buildGameArea(),
+                        ),
+                        // Mobile Controls Panel
+                        _buildMobileControls(context),
+                      ],
+                    ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: isDesktop 
-              ? Row(
-                  children: [
-                    // Sidebar Controls
-                    SizedBox(
-                      width: 380,
-                      child: _buildSidebar(context),
-                    ),
-                    // Main Board Area
-                    Expanded(
-                      child: _buildGameArea(),
-                    ),
-                  ],
-                )
-              : Column(
-                  children: [
-                    // Mobile Header & Score
-                    _buildMobileHeader(),
-                    // Main Board Area
-                    Expanded(
-                      child: _buildGameArea(),
-                    ),
-                    // Mobile Controls Panel
-                    _buildMobileControls(context),
-                  ],
-                ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1596,11 +1614,11 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFF43F5E)),
                   ),
                   const SizedBox(width: 6),
-                  const Text('Máy nghĩ...', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF43F5E), fontSize: 12)),
+                  Text(LanguageManager.instance.text.aiThinking, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF43F5E), fontSize: 12)),
                 ] else if (_winner == null) ...[
-                  const Text('Lượt: ', style: TextStyle(fontSize: 12, color: Colors.white54)),
+                  Text(LanguageManager.instance.text.turn, style: const TextStyle(fontSize: 12, color: Colors.white54)),
                   Text(
-                    _isXTurn ? (_gameMode == GameMode.pvc ? 'Bạn (X)' : 'X') : 'O',
+                    _isXTurn ? (_gameMode == GameMode.pvc ? LanguageManager.instance.text.youX : 'X') : 'O',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -1608,10 +1626,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     ),
                   ),
                 ] else if (_winner == 'Draw') ...[
-                  const Text('Hòa!', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
+                  Text(LanguageManager.instance.text.drawBang, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
                 ] else ...[
                   Text(
-                    '$_winner Thắng!',
+                    LanguageManager.instance.text.winner(_winner!),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
@@ -1672,7 +1690,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   IconButton(
                     icon: const Icon(Icons.emoji_events_rounded, color: Color(0xFFFFB300), size: 20),
                     onPressed: _openLeaderboard,
-                    tooltip: 'Bảng xếp hạng',
+                    tooltip: LanguageManager.instance.text.leaderboard,
                     visualDensity: VisualDensity.compact,
                   ),
                   if (_gameMode == GameMode.pvc && _winner == null && !_aiThinking && _isXTurn) ...[
@@ -1680,7 +1698,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     ElevatedButton.icon(
                       onPressed: (_userProfile?.diamonds ?? 100) >= 10 ? _useAiHint : null,
                       icon: const Icon(Icons.lightbulb_outline_rounded, size: 12),
-                      label: const Text('💡 Gợi ý AI (10đ)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      label: Text(LanguageManager.instance.text.aiHint10, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFB300),
                         foregroundColor: Colors.black,
@@ -1707,7 +1725,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 children: [
                   _buildMiniScore('X', _scoreX, const Color(0xFF00F2FE)),
                   const SizedBox(width: 8),
-                  _buildMiniScore('Hòa', _scoreDraws, Colors.grey),
+                  _buildMiniScore(LanguageManager.instance.text.draw, _scoreDraws, Colors.grey),
                   const SizedBox(width: 8),
                   _buildMiniScore('O', _scoreO, const Color(0xFFF43F5E)),
                 ],
@@ -1737,7 +1755,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 child: OutlinedButton.icon(
                   onPressed: _moveHistory.isEmpty ? null : _undoLastMove,
                   icon: const Icon(Icons.undo_rounded, size: 16),
-                  label: const Text('Hoàn tác'),
+                  label: Text(LanguageManager.instance.text.undo),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: BorderSide(color: Colors.white.withOpacity(0.15)),
@@ -1754,7 +1772,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   }
                 },
                 icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.white70),
-                tooltip: 'Căn giữa bàn cờ',
+                tooltip: LanguageManager.instance.text.centerBoard,
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white.withOpacity(0.05),
                   shape: RoundedRectangleBorder(
@@ -1769,7 +1787,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 child: ElevatedButton.icon(
                   onPressed: () => _resetMatch(),
                   icon: const Icon(Icons.refresh_rounded, size: 16),
-                  label: const Text('Chơi lại'),
+                  label: Text(LanguageManager.instance.text.replay),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00F2FE),
                     foregroundColor: Colors.black,
@@ -1815,27 +1833,28 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     final bool isDraw = _winner == 'Draw';
     
     Color accentColor = const Color(0xFF00F2FE);
-    String titleText = 'Đang chơi';
+    final text = LanguageManager.instance.text;
+    String titleText = text.playing;
     String descriptionText;
 
     if (isWon) {
       accentColor = _winner == 'X' ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E);
-      titleText = 'CHIẾN THẮNG!';
-      descriptionText = 'PLAYER $_winner đã thắng cuộc!';
+      titleText = text.victory;
+      descriptionText = text.playerWon(_winner!);
     } else if (isDraw) {
       accentColor = Colors.orangeAccent;
-      titleText = 'HÒA CỜ';
-      descriptionText = 'Bàn cờ đã đầy!';
+      titleText = text.drawTitle;
+      descriptionText = text.boardFull;
     } else if (_aiThinking) {
       accentColor = const Color(0xFFF43F5E);
-      titleText = 'MÁY ĐANG NGHĨ';
-      descriptionText = '🤖 Đang tính toán nước đi...';
+      titleText = text.aiThinkingTitle;
+      descriptionText = text.calculatingMove;
     } else {
       accentColor = _isXTurn ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E);
       if (_gameMode == GameMode.pvc) {
-        descriptionText = _isXTurn ? 'Lượt của BẠN (X)' : 'Lượt của MÁY (O)';
+        descriptionText = _isXTurn ? text.yourTurnX : text.aiTurnO;
       } else {
-        descriptionText = _isXTurn ? 'Lượt của PLAYER X' : 'Lượt của PLAYER O';
+        descriptionText = _isXTurn ? text.playerXTurn : text.playerOTurn;
       }
     }
 
@@ -1911,7 +1930,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               onPressed: (_userProfile?.diamonds ?? 0) >= _getReviveCost() ? _reviveWithPoints : null,
               icon: const Icon(Icons.autorenew_rounded),
               label: Text(
-                'HỒI SINH BẰNG KIM CƯƠNG (Tốn ${_getReviveCost()} 💎)',
+                LanguageManager.instance.text.reviveWithDiamonds(_getReviveCost()),
                 style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5, fontSize: 13),
               ),
               style: ElevatedButton.styleFrom(
@@ -1926,10 +1945,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             ),
             if ((_userProfile?.diamonds ?? 0) < _getReviveCost()) ...[
               const SizedBox(height: 6),
-              const Center(
+              Center(
                 child: Text(
-                  'Không đủ Kim Cương để hồi sinh',
-                  style: TextStyle(color: Color(0xFFF43F5E), fontSize: 11, fontWeight: FontWeight.w500),
+                  LanguageManager.instance.text.notEnoughDiamondsToRevive,
+                  style: const TextStyle(color: Color(0xFFF43F5E), fontSize: 11, fontWeight: FontWeight.w500),
                 ),
               ),
             ]
@@ -1985,9 +2004,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'KIM CƯƠNG',
-                    style: TextStyle(
+                  Text(
+                    LanguageManager.instance.text.diamondsTitle,
+                    style: const TextStyle(
                       color: Color(0xFF00F2FE),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
@@ -2000,7 +2019,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 ElevatedButton.icon(
                   onPressed: currentDiamonds >= 10 ? _useAiHint : null,
                   icon: const Icon(Icons.lightbulb_outline_rounded, size: 13),
-                  label: const Text('💡 Gợi ý (10đ)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  label: Text(LanguageManager.instance.text.hint10, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFB300),
                     foregroundColor: Colors.black,
@@ -2036,7 +2055,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               TextButton.icon(
                 onPressed: _loadingProfile ? null : _openShop,
                 icon: const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF00F2FE)),
-                label: const Text('Cửa hàng', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                label: Text(LanguageManager.instance.text.shop, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 style: TextButton.styleFrom(padding: EdgeInsets.zero),
               ),
               Container(
@@ -2047,7 +2066,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               TextButton.icon(
                 onPressed: _openLeaderboard,
                 icon: const Icon(Icons.emoji_events_rounded, size: 16, color: Color(0xFFFFB300)),
-                label: const Text('Bảng xếp hạng', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                label: Text(LanguageManager.instance.text.leaderboard, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 style: TextButton.styleFrom(padding: EdgeInsets.zero),
               ),
             ],
@@ -2068,9 +2087,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'TỈ SỐ TRẬN ĐẤU',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+          Text(
+            LanguageManager.instance.text.scoreTitle,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
           ),
           const SizedBox(height: 16),
           Row(
@@ -2103,7 +2122,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               Expanded(
                 child: Column(
                   children: [
-                    const Text('HÒA', style: TextStyle(fontSize: 11, color: Colors.white30)),
+                    Text(LanguageManager.instance.text.drawLabel, style: const TextStyle(fontSize: 11, color: Colors.white30)),
                     const SizedBox(height: 6),
                     Text(
                       '$_scoreDraws',
@@ -2157,16 +2176,16 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'THIẾT LẬP GAME',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+          Text(
+            LanguageManager.instance.text.settingsTitle,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
           ),
           const SizedBox(height: 16),
           // Board Size selector
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Kích thước:', style: TextStyle(fontSize: 13, color: Colors.white70)),
+              Text(LanguageManager.instance.text.boardSize, style: const TextStyle(fontSize: 13, color: Colors.white70)),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -2181,7 +2200,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   GestureDetector(
                     onTap: _showCustomSizeDialog,
                     child: Tooltip(
-                      message: 'Nhấp để tự nhập kích thước (3–35)',
+                      message: LanguageManager.instance.text.customSizeTooltip,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
@@ -2253,7 +2272,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 const Icon(Icons.emoji_events_rounded, color: Color(0xFF00F2FE), size: 14),
                 const SizedBox(width: 8),
                 Text(
-                  'Cần $_winLength ô liên tiếp để thắng',
+                  LanguageManager.instance.text.winLengthInfo(_winLength),
                   style: const TextStyle(
                     color: Color(0xFF00F2FE),
                     fontSize: 12,
@@ -2265,24 +2284,24 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           ),
           const SizedBox(height: 12),
           // ─── Game Mode Toggle ───────────────────────────────────────
-          const Text(
-            'CHẾĐỘ CHƠI',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+          Text(
+            LanguageManager.instance.text.gameMode,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _buildModeChip('👥 2 Người', GameMode.pvp)),
+              Expanded(child: _buildModeChip(LanguageManager.instance.text.twoPlayers, GameMode.pvp)),
               const SizedBox(width: 8),
-              Expanded(child: _buildModeChip('🤖 vs Máy', GameMode.pvc)),
+              Expanded(child: _buildModeChip(LanguageManager.instance.text.versusAi, GameMode.pvc)),
             ],
           ),
           // Difficulty chips (only in PvC)
           if (_gameMode == GameMode.pvc) ...[
             const SizedBox(height: 12),
-            const Text(
-              'ĐỘ KHÓ AI',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+            Text(
+              LanguageManager.instance.text.aiDifficulty,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -2296,15 +2315,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Chặn 2 đầu:', style: TextStyle(fontSize: 13, color: Colors.white70)),
-                    SizedBox(height: 2),
+                    Text(LanguageManager.instance.text.doubleBlock, style: const TextStyle(fontSize: 13, color: Colors.white70)),
+                    const SizedBox(height: 2),
                     Text(
-                      'Không thắng nếu bị chặn 2 đầu',
-                      style: TextStyle(fontSize: 10, color: Colors.white38),
+                      LanguageManager.instance.text.doubleBlockDesc,
+                      style: const TextStyle(fontSize: 10, color: Colors.white38),
                     ),
                   ],
                 ),
@@ -2319,17 +2338,30 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   setState(() {
                     _doubleBlockRule = value;
                   });
-                  // If game is in progress, recalculate the board state or just apply on next moves
-                  // Standard is applying immediately, let's reset match for a clean start or just let it continue
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Đã chuyển sang luật ${value ? "chặn hai đầu" : "tự do (Gomoku)"}.'),
+                      content: Text(LanguageManager.instance.text.ruleModeChanged(value)),
                       duration: const Duration(seconds: 2),
                       backgroundColor: const Color(0xFF1E293B),
                     ),
                   );
                 },
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white10),
+          const SizedBox(height: 12),
+          Text(
+            LanguageManager.instance.text.language,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _buildSettingsLangChip(AppLanguage.vi, 'Tiếng Việt')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildSettingsLangChip(AppLanguage.en, 'English')),
             ],
           ),
         ],
@@ -2347,7 +2379,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               child: OutlinedButton.icon(
                 onPressed: _moveHistory.isEmpty ? null : _undoLastMove,
                 icon: const Icon(Icons.undo_rounded, size: 16),
-                label: const Text('Hoàn tác'),
+                label: Text(LanguageManager.instance.text.undo),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
                   side: BorderSide(color: Colors.white.withOpacity(0.15)),
@@ -2365,7 +2397,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 }
               },
               icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.white70),
-              tooltip: 'Căn giữa bàn cờ',
+              tooltip: LanguageManager.instance.text.centerBoard,
               style: IconButton.styleFrom(
                 backgroundColor: Colors.white.withOpacity(0.04),
                 shape: RoundedRectangleBorder(
@@ -2382,7 +2414,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         ElevatedButton.icon(
           onPressed: () => _resetMatch(),
           icon: const Icon(Icons.refresh_rounded),
-          label: const Text('CHƠI LẬT TRẬN MỚI', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+          label: Text(LanguageManager.instance.text.newMatch, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.0)),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF00F2FE),
             foregroundColor: Colors.black,
@@ -2397,7 +2429,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         TextButton.icon(
           onPressed: () => _resetMatch(clearScore: true),
           icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white54),
-          label: const Text('Đặt lại điểm số', style: TextStyle(color: Colors.white54, fontSize: 13)),
+          label: Text(LanguageManager.instance.text.resetScore, style: const TextStyle(color: Colors.white54, fontSize: 13)),
         ),
       ],
     );
@@ -2467,6 +2499,41 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             fontSize: 11,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             color: isSelected ? const Color(0xFFF43F5E) : Colors.white54,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsLangChip(AppLanguage lang, String label, {StateSetter? setModalState}) {
+    final isSelected = LanguageManager.instance.currentLanguage == lang;
+    return GestureDetector(
+      onTap: () {
+        if (isSelected) return;
+        LanguageManager.instance.setLanguage(lang);
+        setState(() {});
+        if (setModalState != null) {
+          setModalState(() {});
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF00F2FE).withOpacity(0.12) : Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF00F2FE).withOpacity(0.6) : Colors.white.withOpacity(0.1),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? const Color(0xFF00F2FE) : Colors.white54,
           ),
         ),
       ),
@@ -2573,15 +2640,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         return AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Thay đổi cài đặt?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          content: const Text(
-            'Việc thay đổi kích thước bàn cờ sẽ bắt đầu một trận đấu mới và làm sạch bàn cờ hiện tại. Bạn có chắc chắn muốn tiếp tục?',
-            style: TextStyle(color: Colors.white70),
+          title: Text(LanguageManager.instance.text.changeSettingsQuestion, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Text(
+            LanguageManager.instance.text.changeSettingsWarning,
+            style: const TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Hủy', style: TextStyle(color: Colors.white54)),
+              child: Text(LanguageManager.instance.text.cancel, style: const TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -2589,7 +2656,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 onConfirm();
               },
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF43F5E), foregroundColor: Colors.white),
-              child: const Text('Tiếp tục'),
+              child: Text(LanguageManager.instance.text.continueText),
             ),
           ],
         );
@@ -2688,9 +2755,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'CÀI ĐẶT TRẬN ĐẤU',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white30, letterSpacing: 1.5),
+                    Text(
+                      LanguageManager.instance.text.matchSettings,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white30, letterSpacing: 1.5),
                     ),
                     const SizedBox(height: 20),
                     
@@ -2698,7 +2765,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Kích thước:', style: TextStyle(fontSize: 14, color: Colors.white70)),
+                        Text(LanguageManager.instance.text.boardSize, style: const TextStyle(fontSize: 14, color: Colors.white70)),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -2784,7 +2851,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                           const Icon(Icons.emoji_events_rounded, color: Color(0xFF00F2FE), size: 14),
                           const SizedBox(width: 8),
                           Text(
-                            'Cần $_winLength ô liên tiếp để thắng',
+                            LanguageManager.instance.text.winLengthInfo(_winLength),
                             style: const TextStyle(
                               color: Color(0xFF00F2FE),
                               fontSize: 12,
@@ -2797,19 +2864,19 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     
                     // --- Game Mode Selection ---
                     const SizedBox(height: 24),
-                    const Text(
-                      'CHẾ ĐỘ CHƠI',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+                    Text(
+                      LanguageManager.instance.text.gameMode,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
-                          child: _buildModeChip('👥 2 Người', GameMode.pvp, setModalState: setModalState),
+                          child: _buildModeChip(LanguageManager.instance.text.twoPlayers, GameMode.pvp, setModalState: setModalState),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _buildModeChip('🤖 vs Máy', GameMode.pvc, setModalState: setModalState),
+                          child: _buildModeChip(LanguageManager.instance.text.versusAi, GameMode.pvc, setModalState: setModalState),
                         ),
                       ],
                     ),
@@ -2817,9 +2884,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     // --- AI Difficulty Selection ---
                     if (_gameMode == GameMode.pvc) ...[
                       const SizedBox(height: 24),
-                      const Text(
-                        'ĐỘ KHÓ AI',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+                      Text(
+                        LanguageManager.instance.text.aiDifficulty,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
                       ),
                       const SizedBox(height: 10),
                       Wrap(
@@ -2836,13 +2903,13 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Luật chặn hai đầu:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                              SizedBox(height: 2),
-                              Text('Không thắng khi bị đối thủ chặn cả 2 đầu', style: TextStyle(color: Colors.white30, fontSize: 10)),
+                              Text(LanguageManager.instance.text.doubleBlockLong, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                              const SizedBox(height: 2),
+                              Text(LanguageManager.instance.text.doubleBlockDescLong, style: const TextStyle(color: Colors.white30, fontSize: 10)),
                             ],
                           ),
                         ),
@@ -2875,7 +2942,26 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                         minimumSize: const Size.fromHeight(45),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text('Đặt lại tất cả điểm số (0 - 0)'),
+                      child: Text(LanguageManager.instance.text.resetAllScores),
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.white10),
+                    const SizedBox(height: 16),
+                    Text(
+                      LanguageManager.instance.text.language,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white38),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSettingsLangChip(AppLanguage.vi, 'Tiếng Việt', setModalState: setModalState),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _buildSettingsLangChip(AppLanguage.en, 'English', setModalState: setModalState),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                   ],

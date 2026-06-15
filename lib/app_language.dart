@@ -208,6 +208,18 @@ class AppText {
   }
 
   String get masterLevelAchieved => isVi ? 'ĐẠT CẤP BẬC CAO THỦ' : 'MASTER LEVEL ACHIEVED';
+
+  // Mobile game UI
+  String get diamondsTitle => isVi ? 'KIM CƯƠNG' : 'DIAMONDS';
+  String reviveWithDiamonds(int cost) => isVi
+      ? 'HỒI SINH BẰNG KIM CƯƠNG (Tốn $cost 💎)'
+      : 'REVIVE WITH DIAMONDS (Cost $cost 💎)';
+  String playerWins(String player) => isVi ? 'Người chơi $player thắng!' : 'Player $player wins!';
+  String get changeSettingsQuestion => isVi ? 'Thay đổi cài đặt?' : 'Change settings?';
+  String get changeSettingsWarning => isVi
+      ? 'Việc thay đổi kích thước bàn cờ sẽ bắt đầu một trận đấu mới và làm sạch bàn cờ hiện tại. Bạn có chắc chắn muốn tiếp tục?'
+      : 'Changing the board size will start a new match and clear the current board. Are you sure you want to continue?';
+  String get drawLabel => isVi ? 'HÒA' : 'DRAW';
 }
 
 class LanguageManager {
