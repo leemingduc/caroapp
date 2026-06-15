@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../models/skin_theme_config.dart';
 import '../services/db_service.dart';
+import '../app_language.dart';
 
 class ShopDialog extends StatefulWidget {
   final UserProfile userProfile;
   final Function(UserProfile) onProfileUpdated;
+  final AppLanguage language;
 
   const ShopDialog({
     super.key,
     required this.userProfile,
     required this.onProfileUpdated,
+    required this.language,
   });
 
   @override
@@ -21,6 +24,8 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
   late TabController _tabController;
   late UserProfile _currentProfile;
   bool _isProcessing = false;
+
+  AppText get _text => AppText(widget.language);
 
   @override
   void initState() {
@@ -60,13 +65,13 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           _currentProfile = updatedProfile;
         });
         widget.onProfileUpdated(updatedProfile);
-        _showSuccessSnackBar('🎉 Mở khóa thành công Skin "${skin.name}"!');
+        _showSuccessSnackBar(_text.unlockedSkin(skin.displayName(widget.language)));
       } else {
-        _showErrorSnackBar('❌ Đã xảy ra lỗi khi mua Skin. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.buySkinFailed);
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('❌ Lỗi không xác định khi mua Skin. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.buySkinUnknown);
       }
     } finally {
       if (mounted) {
@@ -89,13 +94,13 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           _currentProfile = updatedProfile;
         });
         widget.onProfileUpdated(updatedProfile);
-        _showSuccessSnackBar('✨ Đã áp dụng Skin quân cờ mới!');
+        _showSuccessSnackBar(_text.applySkinSuccess);
       } else {
-        _showErrorSnackBar('❌ Không thể áp dụng Skin. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.applySkinFailed);
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('❌ Lỗi không xác định. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.unknownErrorRetry);
       }
     } finally {
       if (mounted) {
@@ -129,13 +134,13 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           _currentProfile = updatedProfile;
         });
         widget.onProfileUpdated(updatedProfile);
-        _showSuccessSnackBar('🎉 Mở khóa thành công Theme "${theme.name}"!');
+        _showSuccessSnackBar(_text.unlockedTheme(theme.displayName(widget.language)));
       } else {
-        _showErrorSnackBar('❌ Đã xảy ra lỗi khi mua Theme. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.buyThemeFailed);
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('❌ Lỗi không xác định khi mua Theme. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.buyThemeUnknown);
       }
     } finally {
       if (mounted) {
@@ -158,13 +163,13 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           _currentProfile = updatedProfile;
         });
         widget.onProfileUpdated(updatedProfile);
-        _showSuccessSnackBar('✨ Đã áp dụng giao diện bàn cờ mới!');
+        _showSuccessSnackBar(_text.applyThemeSuccess);
       } else {
-        _showErrorSnackBar('❌ Không thể áp dụng Theme. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.applyThemeFailed);
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('❌ Lỗi không xác định. Vui lòng thử lại!');
+        _showErrorSnackBar(_text.unknownErrorRetry);
       }
     } finally {
       if (mounted) {
@@ -227,9 +232,9 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
                         ),
                       ),
                       const SizedBox(width: 14),
-                      const Text(
-                        'CỬA HÀNG CARO',
-                        style: TextStyle(
+                      Text(
+                        _text.shopTitle,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
@@ -281,9 +286,9 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
                 dividerColor: Colors.white.withOpacity(0.08),
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                tabs: const [
-                  Tab(text: 'SKIN QUÂN CỜ', icon: Icon(Icons.grid_4x4_rounded, size: 20)),
-                  Tab(text: 'THEME BÀN CỜ', icon: Icon(Icons.palette_outlined, size: 20)),
+                tabs: [
+                  Tab(text: _text.skinsTab, icon: const Icon(Icons.grid_4x4_rounded, size: 20)),
+                  Tab(text: _text.themesTab, icon: const Icon(Icons.palette_outlined, size: 20)),
                 ],
               ),
               
@@ -315,7 +320,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
                   ),
                   elevation: 0,
                 ),
-                child: const Text('ĐÓNG CỬA HÀNG', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                child: Text(_text.closeShop, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
               ),
             ],
           ),
@@ -335,7 +340,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
 
         return _buildShopItemCard(
           emoji: skin.emoji,
-          name: skin.name,
+          name: skin.displayName(widget.language),
           cost: skin.cost,
           isUnlocked: isUnlocked,
           isActive: isActive,
@@ -382,7 +387,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
 
         return _buildShopItemCard(
           emoji: theme.emoji,
-          name: theme.name,
+          name: theme.displayName(widget.language),
           cost: theme.cost,
           isUnlocked: isUnlocked,
           isActive: isActive,
@@ -503,14 +508,14 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF00F2FE).withOpacity(0.4)),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00F2FE), size: 14),
-            SizedBox(width: 4),
+            const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00F2FE), size: 14),
+            const SizedBox(width: 4),
             Text(
-              'Đang dùng',
-              style: TextStyle(
+              _text.active,
+              style: const TextStyle(
                 color: Color(0xFF00F2FE),
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -535,7 +540,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           minimumSize: Size.zero,
         ),
-        child: const Text('Áp dụng', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Text(_text.apply, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
       );
     }
 

@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import '../services/db_service.dart';
+import '../app_language.dart';
 
 class LeaderboardDialog extends StatelessWidget {
-  const LeaderboardDialog({super.key});
+  final AppLanguage language;
+
+  const LeaderboardDialog({
+    super.key,
+    required this.language,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final text = AppText(language);
     return Dialog(
       backgroundColor: const Color(0xFF0F172A),
       shape: RoundedRectangleBorder(
@@ -35,9 +42,9 @@ class LeaderboardDialog extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Text(
-                    'BẢNG XẾP HẠNG',
-                    style: TextStyle(
+                  Text(
+                    text.leaderboardTitle,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
@@ -64,7 +71,7 @@ class LeaderboardDialog extends StatelessWidget {
                     if (snapshot.hasError) {
                       return Center(
                         child: Text(
-                          'Không thể tải bảng xếp hạng.\nVui lòng thử lại!',
+                          text.leaderboardLoadFailed,
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 13),
                         ),
@@ -73,10 +80,10 @@ class LeaderboardDialog extends StatelessWidget {
 
                     final data = snapshot.data ?? [];
                     if (data.isEmpty) {
-                      return const Center(
+                      return Center(
                         child: Text(
-                          'Chưa có dữ liệu người chơi.',
-                          style: TextStyle(color: Colors.white54, fontSize: 13),
+                          text.noPlayerData,
+                          style: const TextStyle(color: Colors.white54, fontSize: 13),
                         ),
                       );
                     }
@@ -85,7 +92,7 @@ class LeaderboardDialog extends StatelessWidget {
                       itemCount: data.length,
                       itemBuilder: (context, index) {
                         final item = data[index];
-                        final email = item['email'] ?? 'Ẩn danh';
+                        final email = item['email'] ?? text.anonymous;
                         final diamonds = item['diamonds'] ?? 0;
                         final wins = item['wins_pvc'] ?? 0;
                         
@@ -110,7 +117,7 @@ class LeaderboardDialog extends StatelessWidget {
                   ),
                   elevation: 0,
                 ),
-                child: const Text('ĐÓNG BẢNG XẾP HẠNG', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                child: Text(text.closeLeaderboard, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
               ),
             ],
           ),
@@ -120,6 +127,7 @@ class LeaderboardDialog extends StatelessWidget {
   }
 
   Widget _buildLeaderboardRow(int rank, String email, int diamonds, int wins) {
+    final text = AppText(language);
     Widget rankIcon;
     Color? rankBgColor;
     Color? borderGlowColor;
@@ -197,8 +205,8 @@ class LeaderboardDialog extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Thắng máy: $wins trận',
-                  style: TextStyle(color: Colors.white38, fontSize: 10),
+                  text.winsVsAi(wins),
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
                 ),
               ],
             ),

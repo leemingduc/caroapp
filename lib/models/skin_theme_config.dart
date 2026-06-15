@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../app_language.dart';
+
 class SkinConfig {
   final String id;
   final String name;
+  final String englishName;
   final int cost;
   final Color xColor;
   final Color oColor;
@@ -13,6 +16,7 @@ class SkinConfig {
   SkinConfig({
     required this.id,
     required this.name,
+    required this.englishName,
     required this.cost,
     required this.xColor,
     required this.oColor,
@@ -21,10 +25,15 @@ class SkinConfig {
     required this.emoji,
   });
 
+  String displayName(AppLanguage language) {
+    return language == AppLanguage.vi ? name : englishName;
+  }
+
   static final List<SkinConfig> allSkins = [
     SkinConfig(
       id: 'default',
       name: 'Neon mặc định',
+      englishName: 'Default Neon',
       cost: 0,
       emoji: '🎮',
       xColor: const Color(0xFF00F2FE),
@@ -39,6 +48,7 @@ class SkinConfig {
     SkinConfig(
       id: 'gold',
       name: 'Vàng hoàng kim',
+      englishName: 'Royal Gold',
       cost: 150,
       emoji: '👑',
       xColor: const Color(0xFFFFD700),
@@ -53,6 +63,7 @@ class SkinConfig {
     SkinConfig(
       id: 'volcano',
       name: 'Hỏa ngục magma',
+      englishName: 'Magma Inferno',
       cost: 120,
       emoji: '🔥',
       xColor: const Color(0xFFFF4500),
@@ -67,6 +78,7 @@ class SkinConfig {
     SkinConfig(
       id: 'ocean',
       name: 'Xanh đại dương',
+      englishName: 'Ocean Blue',
       cost: 100,
       emoji: '🌊',
       xColor: const Color(0xFF00BFFF),
@@ -88,6 +100,7 @@ class SkinConfig {
 class ThemeConfig {
   final String id;
   final String name;
+  final String englishName;
   final int cost;
   final List<Color> bgGradient;
   final Color boardBg;
@@ -98,6 +111,7 @@ class ThemeConfig {
   ThemeConfig({
     required this.id,
     required this.name,
+    required this.englishName,
     required this.cost,
     required this.bgGradient,
     required this.boardBg,
@@ -106,10 +120,15 @@ class ThemeConfig {
     required this.emoji,
   });
 
+  String displayName(AppLanguage language) {
+    return language == AppLanguage.vi ? name : englishName;
+  }
+
   static final List<ThemeConfig> allThemes = [
     ThemeConfig(
       id: 'default',
-      name: 'Dark Slate',
+      name: 'Đá phiến tối',
+      englishName: 'Dark Slate',
       cost: 0,
       emoji: '🌌',
       bgGradient: [
@@ -123,7 +142,8 @@ class ThemeConfig {
     ),
     ThemeConfig(
       id: 'cyberpunk',
-      name: 'Cyberpunk Grid',
+      name: 'Lưới cyberpunk',
+      englishName: 'Cyberpunk Grid',
       cost: 200,
       emoji: '⚡',
       bgGradient: [
@@ -132,12 +152,13 @@ class ThemeConfig {
         const Color(0xFF05000A),
       ],
       boardBg: const Color(0xFF220A3E).withOpacity(0.85),
-      gridLineColor: const Color(0xFFFF007F).withOpacity(0.2), // Neon Pink
-      boardBorderColor: const Color(0xFF39FF14), // Neon Green
+      gridLineColor: const Color(0xFFFF007F).withOpacity(0.2),
+      boardBorderColor: const Color(0xFF39FF14),
     ),
     ThemeConfig(
       id: 'wood',
       name: 'Gỗ cổ điển',
+      englishName: 'Classic Wood',
       cost: 150,
       emoji: '🪵',
       bgGradient: [
@@ -145,13 +166,14 @@ class ThemeConfig {
         const Color(0xFF4E342E),
         const Color(0xFF2D1500),
       ],
-      boardBg: const Color(0xFF8B4513).withOpacity(0.9), // SaddleBrown
+      boardBg: const Color(0xFF8B4513).withOpacity(0.9),
       gridLineColor: const Color(0xFF5C2C16).withOpacity(0.4),
-      boardBorderColor: const Color(0xFFD2B48C), // Tan wood border
+      boardBorderColor: const Color(0xFFD2B48C),
     ),
     ThemeConfig(
       id: 'sakura',
       name: 'Hoa anh đào',
+      englishName: 'Sakura',
       cost: 180,
       emoji: '🌸',
       bgGradient: [
@@ -159,9 +181,9 @@ class ThemeConfig {
         const Color(0xFF1E1219),
         const Color(0xFF11080D),
       ],
-      boardBg: const Color(0xFF421C2B).withOpacity(0.9), // Deep rosewood
-      gridLineColor: const Color(0xFFFFC0CB).withOpacity(0.25), // Pink line
-      boardBorderColor: const Color(0xFFFFB6C1), // Light pink border
+      boardBg: const Color(0xFF421C2B).withOpacity(0.9),
+      gridLineColor: const Color(0xFFFFC0CB).withOpacity(0.25),
+      boardBorderColor: const Color(0xFFFFB6C1),
     ),
   ];
 

@@ -10,6 +10,7 @@ import 'services/audio_service.dart';
 import 'screens/shop_dialog.dart';
 import 'screens/leaderboard_dialog.dart';
 import 'screens/win_effect_overlay.dart';
+import 'app_language.dart';
 
 // ─── Game Mode & AI Difficulty ────────────────────────────────────────────
 enum GameMode { pvp, pvc }
@@ -49,6 +50,9 @@ void main() async {
   // Initialize Supabase
   await initSupabase();
 
+  // Initialize Language
+  await LanguageManager.instance.init();
+
   runApp(const CaroApp());
 }
 
@@ -57,16 +61,21 @@ class CaroApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Caro Master Web',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
-        fontFamily: 'Roboto',
-        useMaterial3: true,
-      ),
-      home: const AuthGate(),
+    return ValueListenableBuilder<AppLanguage>(
+      valueListenable: LanguageManager.instance.languageNotifier,
+      builder: (context, language, child) {
+        return MaterialApp(
+          title: 'Caro Master Web',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            brightness: Brightness.dark,
+            scaffoldBackgroundColor: const Color(0xFF0F172A),
+            fontFamily: 'Roboto',
+            useMaterial3: true,
+          ),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }
@@ -130,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (error) {
       _showError(error.message);
     } catch (_) {
-      _showError('Khong the xu ly yeu cau. Vui long thu lai.');
+      _showError(LanguageManager.instance.text.authRequestFailed);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -154,8 +163,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted || response.session != null) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Dang ky thanh cong. Vui long kiem tra email de xac nhan tai khoan.'),
+      SnackBar(
+        content: Text(LanguageManager.instance.text.signUpSuccess),
         backgroundColor: Colors.green,
       ),
     );
@@ -179,6 +188,27 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildLangButton(AppLanguage lang, String label) {
+    final isSelected = LanguageManager.instance.currentLanguage == lang;
+    return InkWell(
+      onTap: () {
+        LanguageManager.instance.setLanguage(lang);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF00F2FE) : Colors.white38,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,164 +225,191 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  color: const Color(0xFF111827),
-                  elevation: 16,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: Colors.white.withOpacity(0.08)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.grid_4x4_rounded,
-                            color: Color(0xFF00F2FE),
-                            size: 44,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'CARO ARENA',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          SegmentedButton<bool>(
-                            segments: const [
-                              ButtonSegment<bool>(
-                                value: false,
-                                label: Text('Dang nhap'),
-                                icon: Icon(Icons.login_rounded),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Card(
+                      color: const Color(0xFF111827),
+                      elevation: 16,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        side: BorderSide(color: Colors.white.withOpacity(0.08)),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.grid_4x4_rounded,
+                                color: Color(0xFF00F2FE),
+                                size: 44,
                               ),
-                              ButtonSegment<bool>(
-                                value: true,
-                                label: Text('Dang ky'),
-                                icon: Icon(Icons.person_add_alt_1_rounded),
-                              ),
-                            ],
-                            selected: {_isRegisterMode},
-                            onSelectionChanged: _isLoading
-                                ? null
-                                : (selection) {
-                                    final nextMode = selection.first;
-                                    if (nextMode != _isRegisterMode) {
-                                      _toggleAuthMode();
-                                    }
-                                  },
-                          ),
-                          const SizedBox(height: 20),
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: Icon(Icons.mail_outline_rounded),
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (value) {
-                              final email = value?.trim() ?? '';
-                              if (email.isEmpty) return 'Vui long nhap email';
-                              if (!email.contains('@')) return 'Email khong hop le';
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _submit(),
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: const Icon(Icons.lock_outline_rounded),
-                              border: const OutlineInputBorder(),
-                              suffixIcon: IconButton(
-                                tooltip: _obscurePassword ? 'Hien password' : 'An password',
-                                icon: Icon(
-                                  _obscurePassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
+                              const SizedBox(height: 16),
+                              Text(
+                                LanguageManager.instance.text.appTitle,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
                                 ),
-                                onPressed: () {
-                                  setState(() => _obscurePassword = !_obscurePassword);
+                              ),
+                              const SizedBox(height: 28),
+                              SegmentedButton<bool>(
+                                segments: [
+                                  ButtonSegment<bool>(
+                                    value: false,
+                                    label: Text(LanguageManager.instance.text.signIn),
+                                    icon: const Icon(Icons.login_rounded),
+                                  ),
+                                  ButtonSegment<bool>(
+                                    value: true,
+                                    label: Text(LanguageManager.instance.text.signUp),
+                                    icon: const Icon(Icons.person_add_alt_1_rounded),
+                                  ),
+                                ],
+                                selected: {_isRegisterMode},
+                                onSelectionChanged: _isLoading
+                                    ? null
+                                    : (selection) {
+                                        final nextMode = selection.first;
+                                        if (nextMode != _isRegisterMode) {
+                                          _toggleAuthMode();
+                                        }
+                                      },
+                              ),
+                              const SizedBox(height: 20),
+                              TextFormField(
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                decoration: InputDecoration(
+                                  labelText: LanguageManager.instance.text.email,
+                                  prefixIcon: const Icon(Icons.mail_outline_rounded),
+                                  border: const OutlineInputBorder(),
+                                ),
+                                validator: (value) {
+                                  final email = value?.trim() ?? '';
+                                  if (email.isEmpty) return LanguageManager.instance.text.emailRequired;
+                                  if (!email.contains('@')) return LanguageManager.instance.text.emailInvalid;
+                                  return null;
                                 },
                               ),
-                            ),
-                            validator: (value) {
-                              if ((value ?? '').isEmpty) return 'Vui long nhap password';
-                              return null;
-                            },
-                          ),
-                          if (_isRegisterMode) ...[
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _confirmPasswordController,
-                              obscureText: _obscurePassword,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _submit(),
-                              decoration: const InputDecoration(
-                                labelText: 'Confirm password',
-                                prefixIcon: Icon(Icons.verified_user_outlined),
-                                border: OutlineInputBorder(),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: _obscurePassword,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _submit(),
+                                decoration: InputDecoration(
+                                  labelText: LanguageManager.instance.text.password,
+                                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon: IconButton(
+                                    tooltip: _obscurePassword 
+                                        ? LanguageManager.instance.text.showPassword 
+                                        : LanguageManager.instance.text.hidePassword,
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                    onPressed: () {
+                                      setState(() => _obscurePassword = !_obscurePassword);
+                                    },
+                                  ),
+                                ),
+                                validator: (value) {
+                                  if ((value ?? '').isEmpty) return LanguageManager.instance.text.passwordRequired;
+                                  return null;
+                                },
                               ),
-                              validator: (value) {
-                                if (!_isRegisterMode) return null;
-                                if ((value ?? '').isEmpty) {
-                                  return 'Vui long nhap lai password';
-                                }
-                                if (value != _passwordController.text) {
-                                  return 'Password khong trung khop';
-                                }
-                                return null;
-                              },
-                            ),
-                          ],
-                          const SizedBox(height: 24),
-                          FilledButton.icon(
-                            onPressed: _isLoading ? null : _submit,
-                            icon: _isLoading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : Icon(_isRegisterMode
-                                    ? Icons.person_add_alt_1_rounded
-                                    : Icons.login_rounded),
-                            label: Text(_isRegisterMode ? 'Dang ky tai khoan' : 'Dang nhap'),
+                              if (_isRegisterMode) ...[
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _obscurePassword,
+                                  textInputAction: TextInputAction.done,
+                                  onFieldSubmitted: (_) => _submit(),
+                                  decoration: InputDecoration(
+                                    labelText: LanguageManager.instance.text.confirmPassword,
+                                    prefixIcon: const Icon(Icons.verified_user_outlined),
+                                    border: const OutlineInputBorder(),
+                                  ),
+                                  validator: (value) {
+                                    if (!_isRegisterMode) return null;
+                                    if ((value ?? '').isEmpty) {
+                                      return LanguageManager.instance.text.confirmPasswordRequired;
+                                    }
+                                    if (value != _passwordController.text) {
+                                      return LanguageManager.instance.text.passwordMismatch;
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                              const SizedBox(height: 24),
+                              FilledButton.icon(
+                                onPressed: _isLoading ? null : _submit,
+                                icon: _isLoading
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : Icon(_isRegisterMode
+                                        ? Icons.person_add_alt_1_rounded
+                                        : Icons.login_rounded),
+                                label: Text(_isRegisterMode 
+                                    ? LanguageManager.instance.text.signUpAccount 
+                                    : LanguageManager.instance.text.signIn),
+                              ),
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: _isLoading ? null : _toggleAuthMode,
+                                child: Text(
+                                  _isRegisterMode
+                                      ? LanguageManager.instance.text.alreadyHaveAccount
+                                      : LanguageManager.instance.text.noAccountYet,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: _isLoading ? null : _toggleAuthMode,
-                            child: Text(
-                              _isRegisterMode
-                                  ? 'Da co tai khoan? Dang nhap'
-                                  : 'Chua co tai khoan? Dang ky ngay',
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111827).withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildLangButton(AppLanguage.vi, 'VI'),
+                      Container(width: 1, height: 16, color: Colors.white12),
+                      _buildLangButton(AppLanguage.en, 'EN'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -375,21 +432,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   int _boardSize = 10; // default 10x10
 
   // Win length lookup table:
-  // 3-4   → 3 ô
-  // 5     → 4 ô
-  // 6-14  → 5 ô
-  // 15-19 → 6 ô
-  // 20-24 → 7 ô
-  // 25-29 → 8 ô
-  // 30-35 → 9 ô
+  // 3x3           -> 3 cells
+  // 4x4           -> 4 cells
+  // 5x5 - 19x19   -> 5 cells
+  // 20x20 - 35x35 -> 6 cells
   int get _winLength {
-    if (_boardSize <= 4)  return 3;
-    if (_boardSize == 5)  return 4;
-    if (_boardSize <= 14) return 5;
-    if (_boardSize <= 19) return 6;
-    if (_boardSize <= 24) return 7;
-    if (_boardSize <= 29) return 8;
-    return 9; // 30-35
+    if (_boardSize <= 3) return 3;
+    if (_boardSize == 4) return 4;
+    if (_boardSize >= 20) return 6;
+    return 5;
   }
   bool _doubleBlockRule = true; // Rules: Vietnamese blocked-at-both-ends rule
   final double _cellSize = 44.0;
@@ -398,7 +449,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   final Map<Point<int>, String> _board = {}; // Coordinates mapped to 'X' or 'O'
   bool _isXTurn = true;
   String? _winner; // 'X', 'O', 'Draw', or null
-  List<Point<int>>? _winningLine; // Coordinates of the 5 winning cells
+  List<Point<int>>? _winningLine; // Coordinates of the winning cells
   Point<int>? _lastMove;
   Point<int>? _hoveredCell;
   bool _pvcLossPending = false;
@@ -450,8 +501,8 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     final currentDiamonds = _userProfile?.diamonds ?? 0;
     if (currentDiamonds < cost) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Bạn không đủ Kim Cương để hồi sinh!'),
+        SnackBar(
+          content: Text(LanguageManager.instance.text.reviveNoDiamonds),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -487,7 +538,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✨ Hồi sinh thành công! Đã sử dụng hết $cost Kim Cương 💎'),
+        content: Text(LanguageManager.instance.text.reviveSuccess(cost)),
         backgroundColor: Colors.green,
       ),
     );
@@ -498,8 +549,8 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     final currentDiamonds = _userProfile?.diamonds ?? 0;
     if (currentDiamonds < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Bạn không đủ Kim Cương để nhận gợi ý (cần 10 💎)!'),
+        SnackBar(
+          content: Text(LanguageManager.instance.text.hintNoDiamonds),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -529,16 +580,16 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         _hintCell = hint;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('💡 Đã hiển thị gợi ý AI! Trừ 10 Kim Cương 💎'),
+        SnackBar(
+          content: Text(LanguageManager.instance.text.hintShown),
           backgroundColor: Colors.amber,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm được nước gợi ý phù hợp.'),
+        SnackBar(
+          content: Text(LanguageManager.instance.text.hintNotFound),
           backgroundColor: Colors.orangeAccent,
         ),
       );
@@ -560,12 +611,12 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           backgroundColor: const Color(0xFF1E293B),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
-            children: const [
-              Icon(Icons.dangerous_rounded, color: Color(0xFFF43F5E), size: 28),
-              SizedBox(width: 10),
+            children: [
+              const Icon(Icons.dangerous_rounded, color: Color(0xFFF43F5E), size: 28),
+              const SizedBox(width: 10),
               Text(
-                'MÁY ĐÃ THẮNG!',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                LanguageManager.instance.text.aiWon,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ],
           ),
@@ -573,9 +624,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Bạn đã bị Máy đánh bại. Bạn có muốn hồi sinh để tiếp tục trận đấu không?',
-                style: TextStyle(color: Colors.white70, fontSize: 14),
+              Text(
+                LanguageManager.instance.text.reviveQuestion,
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
               ),
               const SizedBox(height: 16),
               Container(
@@ -588,9 +639,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Phí hồi sinh:', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                    Text(LanguageManager.instance.text.reviveFee, style: const TextStyle(color: Colors.white60, fontSize: 13)),
                     Text(
-                      '$cost Kim Cương 💎',
+                      LanguageManager.instance.text.diamonds(cost),
                       style: TextStyle(
                         color: canAfford ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E),
                         fontWeight: FontWeight.bold,
@@ -602,7 +653,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               ),
               const SizedBox(height: 8),
               Text(
-                'Số dư của bạn: $currentDiamonds Kim Cương 💎',
+                LanguageManager.instance.text.balance(currentDiamonds),
                 style: TextStyle(
                   color: canAfford ? Colors.white54 : const Color(0xFFF43F5E),
                   fontSize: 12,
@@ -616,7 +667,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 _settlePendingPvcLoss();
                 Navigator.of(context).pop();
               },
-              child: const Text('Chấp nhận thua', style: TextStyle(color: Colors.white54)),
+              child: Text(LanguageManager.instance.text.acceptLoss, style: const TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
               onPressed: canAfford
@@ -632,7 +683,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 disabledForegroundColor: Colors.white30,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: Text(canAfford ? 'Hồi sinh ngay' : 'Không đủ Kim Cương'),
+              child: Text(canAfford ? LanguageManager.instance.text.reviveNow : LanguageManager.instance.text.notEnoughDiamonds),
             ),
           ],
         );
@@ -745,6 +796,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       context: context,
       builder: (context) => ShopDialog(
         userProfile: _userProfile!,
+        language: LanguageManager.instance.currentLanguage,
         onProfileUpdated: (updatedProfile) {
           setState(() {
             _userProfile = updatedProfile;
@@ -757,7 +809,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   void _openLeaderboard() {
     showDialog(
       context: context,
-      builder: (context) => const LeaderboardDialog(),
+      builder: (context) => LeaderboardDialog(
+        language: LanguageManager.instance.currentLanguage,
+      ),
     );
   }
 
@@ -2550,26 +2604,26 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         return AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Luật Chơi Cờ Caro', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text(LanguageManager.instance.text.rulesTitle, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildRulePoint('1', 'Người chơi lần lượt đặt X và O lên các ô trống.'),
+                _buildRulePoint('1', LanguageManager.instance.text.rule1),
                 const SizedBox(height: 8),
-                _buildRulePoint('2', 'Chiến thắng khi có 5 ô liên tiếp thẳng hàng ngang, dọc hoặc chéo.'),
+                _buildRulePoint('2', LanguageManager.instance.text.rule2),
                 const SizedBox(height: 8),
-                _buildRulePoint('3', 'Luật chặn 2 đầu (nếu bật): Nếu chuỗi 5 ô bị chặn ở cả 2 đầu bởi quân cờ của đối thủ thì chưa được tính thắng.'),
+                _buildRulePoint('3', LanguageManager.instance.text.rule3),
                 const SizedBox(height: 8),
-                _buildRulePoint('4', 'Thu phóng: Dùng thao tác Ctrl + Lăn chuột (trên PC) hoặc Kéo 2 ngón tay (trên Mobile) để phóng to/thu nhỏ. Kéo bằng 1 ngón/chuột để di chuyển bàn cờ.'),
+                _buildRulePoint('4', LanguageManager.instance.text.rule4),
               ],
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Đóng', style: TextStyle(color: Color(0xFF00F2FE))),
+              child: Text(LanguageManager.instance.text.close, style: const TextStyle(color: Color(0xFF00F2FE))),
             ),
           ],
         );
