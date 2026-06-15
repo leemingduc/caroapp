@@ -17,6 +17,16 @@ enum GameMode { pvp, pvc }
 enum AiDifficulty { easy, amateur, medium, semiPro, professional }
 
 extension AiDifficultyExt on AiDifficulty {
+  String get key {
+    switch (this) {
+      case AiDifficulty.easy:         return 'easy';
+      case AiDifficulty.amateur:      return 'amateur';
+      case AiDifficulty.medium:       return 'medium';
+      case AiDifficulty.semiPro:      return 'semiPro';
+      case AiDifficulty.professional: return 'professional';
+    }
+  }
+
   String get label {
     switch (this) {
       case AiDifficulty.easy:         return '🎮 Dễ';
@@ -391,6 +401,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   List<Point<int>>? _winningLine; // Coordinates of the 5 winning cells
   Point<int>? _lastMove;
   Point<int>? _hoveredCell;
+  bool _pvcLossPending = false;
 
   // Profile state
   UserProfile? _userProfile;
@@ -457,6 +468,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     AudioService.playReviveSuccess();
 
     setState(() {
+      _pvcLossPending = false;
       _reviveCount++;
       
       // Revert AI's winning move
@@ -600,7 +612,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                _settlePendingPvcLoss();
+                Navigator.of(context).pop();
+              },
               child: const Text('Chấp nhận thua', style: TextStyle(color: Colors.white54)),
             ),
             ElevatedButton(
@@ -656,6 +671,74 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     await DbService.saveProfile(updatedProfile);
   }
 
+  UserProfile _applyLocalPvcOutcome(UserProfile profile, String outcome) {
+    switch (outcome) {
+      case 'win':
+        return profile.copyWith(
+          diamonds: profile.diamonds + _getWinDiamonds(),
+          winsPvc: profile.winsPvc + 1,
+        );
+      case 'loss':
+        return profile.copyWith(lossesPvc: profile.lossesPvc + 1);
+      case 'draw':
+        return profile.copyWith(draws: profile.draws + 1);
+      default:
+        return profile;
+    }
+  }
+
+  Future<void> _recordPvcMatch(String outcome) async {
+    if (_gameMode != GameMode.pvc || _userProfile == null) return;
+
+    final optimisticProfile = _applyLocalPvcOutcome(_userProfile!, outcome);
+    setState(() {
+      _userProfile = optimisticProfile;
+    });
+
+    final updatedProfile = await DbService.recordPvcMatch(
+      userId: widget.userId,
+      email: widget.userEmail,
+      outcome: outcome,
+      aiDifficulty: _aiDifficulty.key,
+      boardSize: _boardSize,
+      winLength: _winLength,
+      movesCount: _moveHistory.length,
+    );
+
+    if (!mounted) return;
+
+    if (updatedProfile == null) {
+      final fallbackProfile = _userProfile ?? optimisticProfile;
+      await DbService.saveProfile(fallbackProfile);
+      await DbService.savePvcMatchHistory(
+        userId: widget.userId,
+        email: widget.userEmail,
+        outcome: outcome,
+        aiDifficulty: _aiDifficulty.key,
+        boardSize: _boardSize,
+        winLength: _winLength,
+        movesCount: _moveHistory.length,
+        diamondDelta: outcome == 'win' ? _getWinDiamonds() : 0,
+        diamondsAfter: fallbackProfile.diamonds,
+        winsPvcAfter: fallbackProfile.winsPvc,
+      );
+      return;
+    }
+
+    if (!identical(_userProfile, optimisticProfile)) return;
+
+    setState(() {
+      _userProfile = updatedProfile;
+    });
+    await DbService.saveProfile(updatedProfile);
+  }
+
+  void _settlePendingPvcLoss() {
+    if (!_pvcLossPending) return;
+    _pvcLossPending = false;
+    _recordPvcMatch('loss');
+  }
+
   void _openShop() {
     if (_userProfile == null) return;
     showDialog(
@@ -707,6 +790,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
   // Reset current match state
   void _resetMatch({bool clearScore = false}) {
+    _settlePendingPvcLoss();
     setState(() {
       _board.clear();
       _moveHistory.clear();
@@ -720,6 +804,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       _hintCell = null;
       _showWinEffect = false;
       _winEffectLevel = null;
+      _pvcLossPending = false;
       if (clearScore) {
         _scoreX = 0;
         _scoreO = 0;
@@ -746,6 +831,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
     bool shouldTriggerAI = false;
     String? winnerAfterMove;
+    String? pvcOutcomeAfterMove;
 
     setState(() {
       _hintCell = null; // Clear hint on move
@@ -772,13 +858,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           _scoreX++;
           if (_gameMode == GameMode.pvc) {
             final winDia = _getWinDiamonds();
-            if (_userProfile != null) {
-              final updatedProfile = _userProfile!.copyWith(
-                diamonds: _userProfile!.diamonds + winDia,
-                winsPvc: _userProfile!.winsPvc + 1,
-              );
-              _updateProfile(updatedProfile);
-            }
+            pvcOutcomeAfterMove = 'win';
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -791,24 +871,14 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           }
         } else {
           _scoreO++;
-          if (_gameMode == GameMode.pvc && _userProfile != null) {
-            final updatedProfile = _userProfile!.copyWith(
-              lossesPvc: _userProfile!.lossesPvc + 1,
-            );
-            _updateProfile(updatedProfile);
-          }
+          if (_gameMode == GameMode.pvc) pvcOutcomeAfterMove = 'loss';
         }
       } else {
         if (_board.length == _boardSize * _boardSize) {
           _winner = 'Draw';
           winnerAfterMove = 'Draw';
           _scoreDraws++;
-          if (_gameMode == GameMode.pvc && _userProfile != null) {
-            final updatedProfile = _userProfile!.copyWith(
-              draws: _userProfile!.draws + 1,
-            );
-            _updateProfile(updatedProfile);
-          }
+          if (_gameMode == GameMode.pvc) pvcOutcomeAfterMove = 'draw';
         } else {
           _isXTurn = !_isXTurn;
           if (_gameMode == GameMode.pvc && !_isXTurn) {
@@ -823,6 +893,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     // Trigger audio & visual effects AFTER setState
     if (winnerAfterMove != null) {
       _handleWinEffect(winnerAfterMove!);
+    }
+
+    if (pvcOutcomeAfterMove != null) {
+      _recordPvcMatch(pvcOutcomeAfterMove!);
     }
 
     if (shouldTriggerAI) _triggerAiMove();
@@ -928,6 +1002,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     }
 
     String? winnerAfterAi;
+    String? pvcOutcomeAfterAi;
     setState(() {
       _hintCell = null; // Clear hint on move
       _aiThinking = false;
@@ -943,22 +1018,12 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         _winningLine = winLine;
         _scoreO++;
         winnerAfterAi = 'O';
-        if (_gameMode == GameMode.pvc && _userProfile != null) {
-          final updatedProfile = _userProfile!.copyWith(
-            lossesPvc: _userProfile!.lossesPvc + 1,
-          );
-          _updateProfile(updatedProfile);
-        }
+        if (_gameMode == GameMode.pvc) _pvcLossPending = true;
       } else if (_board.length == _boardSize * _boardSize) {
         _winner = 'Draw';
         winnerAfterAi = 'Draw';
         _scoreDraws++;
-        if (_gameMode == GameMode.pvc && _userProfile != null) {
-          final updatedProfile = _userProfile!.copyWith(
-            draws: _userProfile!.draws + 1,
-          );
-          _updateProfile(updatedProfile);
-        }
+        if (_gameMode == GameMode.pvc) pvcOutcomeAfterAi = 'draw';
       } else {
         _isXTurn = true;
       }
@@ -966,6 +1031,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
     if (winnerAfterAi != null) {
       _handleWinEffect(winnerAfterAi!);
+    }
+
+    if (pvcOutcomeAfterAi != null) {
+      _recordPvcMatch(pvcOutcomeAfterAi!);
     }
 
     if (_winner == 'O' && _gameMode == GameMode.pvc) {
@@ -988,6 +1057,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         else _scoreDraws = max(0, _scoreDraws - 1);
         _winner = null;
         _winningLine = null;
+        _pvcLossPending = false;
       }
 
       // In PvC, undo 2 moves (AI's O + player's X) so it's always player's turn after undo

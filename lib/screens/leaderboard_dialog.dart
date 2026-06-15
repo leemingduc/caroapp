@@ -48,10 +48,10 @@ class LeaderboardDialog extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               
-              // Future Builder to fetch stats
+              // Realtime leaderboard stream
               Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: DbService.getLeaderboard(),
+                child: StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: DbService.getLeaderboardStream(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
