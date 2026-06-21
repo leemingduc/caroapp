@@ -7,13 +7,15 @@ import 'models/user_profile.dart';
 import 'models/skin_theme_config.dart';
 import 'services/db_service.dart';
 import 'services/audio_service.dart';
+import 'services/pvp_service.dart';
 import 'screens/shop_dialog.dart';
 import 'screens/leaderboard_dialog.dart';
 import 'screens/win_effect_overlay.dart';
 import 'app_language.dart';
+import 'dart:async';
 
 // ─── Game Mode & AI Difficulty ────────────────────────────────────────────
-enum GameMode { pvp, pvc }
+enum GameMode { pvp, pvc, pvpOnline }
 
 enum AiDifficulty { easy, amateur, medium, semiPro, professional }
 
@@ -494,6 +496,20 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   int _scoreO = 0;
   int _scoreDraws = 0;
 
+  // PVP Online State
+  String? _pvpMatchId;
+  String? _pvpPlayerRole; // 'X' or 'O'
+  String? _pvpOpponentEmail;
+  bool _pvpIsMatching = false;
+  int _matchmakingSeconds = 0;
+  Timer? _matchmakingTimer;
+  Timer? _matchmakingPollTimer;
+  RealtimeChannel? _pvpMatchChannel;
+  Timer? _turnCountdownTimer;
+  int _turnSecondsLeft = 30;
+  bool _isOpponentConnected = true;
+  final ValueNotifier<int> _matchmakingSecondsNotifier = ValueNotifier<int>(0);
+
   // Helpers for reward system
   int _getReviveCost() {
     return 15 + 15 * _reviveCount;
@@ -830,8 +846,35 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
   @override
   void dispose() {
+    _cleanupPvpState();
     _transformationController.dispose();
     super.dispose();
+  }
+
+  void _cleanupPvpState() {
+    _matchmakingTimer?.cancel();
+    _matchmakingPollTimer?.cancel();
+    _turnCountdownTimer?.cancel();
+    _matchmakingTimer = null;
+    _matchmakingPollTimer = null;
+    _turnCountdownTimer = null;
+    
+    if (_pvpMatchChannel != null) {
+      supabase.removeChannel(_pvpMatchChannel!);
+      _pvpMatchChannel = null;
+    }
+    
+    if (_pvpIsMatching) {
+      _pvpIsMatching = false;
+      if (_userProfile != null) {
+        PvpService.cancelMatchmaking(_userProfile!.id);
+      }
+    }
+    
+    _pvpMatchId = null;
+    _pvpPlayerRole = null;
+    _pvpOpponentEmail = null;
+    _isOpponentConnected = true;
   }
 
   // Centering board logic based on viewport constraints
@@ -858,6 +901,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   // Reset current match state
   void _resetMatch({bool clearScore = false}) {
     _settlePendingPvcLoss();
+    _cleanupPvpState();
     setState(() {
       _board.clear();
       _moveHistory.clear();
@@ -889,12 +933,601 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     }
   }
 
+  // --- PvP Online Helpers ---
+
+  void _startMatchmaking() async {
+    if (_userProfile == null) return;
+    _cleanupPvpState();
+
+    setState(() {
+      _pvpIsMatching = true;
+      _matchmakingSeconds = 0;
+      _matchmakingSecondsNotifier.value = 0;
+    });
+
+    // Start UI pulse timer
+    _matchmakingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _matchmakingSeconds++;
+      _matchmakingSecondsNotifier.value = _matchmakingSeconds;
+    });
+
+    // Show beautiful Pulse Dialog
+    _showMatchmakingDialog();
+
+    final myId = _userProfile!.id;
+    final myEmail = _userProfile!.email;
+
+    final result = await PvpService.joinMatchmaking(
+      userId: myId,
+      email: myEmail,
+      boardSize: 15, // Standard PvP
+      winLength: 5,  // Standard PvP
+    );
+
+    final status = result['status'];
+    if (status == 'matched') {
+      final matchId = result['match_id'];
+      final role = result['role'];
+      final oppEmail = result['opponent_email'] ?? 'Opponent';
+      
+      _initializePvpMatch(matchId, role, oppEmail);
+    } else if (status == 'waiting') {
+      // Start polling matchmaking queue status in case of WebSockets delay/fail
+      _matchmakingPollTimer = Timer.periodic(const Duration(milliseconds: 1000), (timer) async {
+        if (!_pvpIsMatching) {
+          timer.cancel();
+          return;
+        }
+
+        final queueData = await PvpService.getQueueStatus(myId);
+        if (queueData != null && queueData['status'] == 'matched') {
+          timer.cancel();
+          final matchId = queueData['match_id'];
+          
+          final matchDetails = await PvpService.getMatch(matchId);
+          if (matchDetails != null) {
+            final oppEmail = matchDetails['player2_email'] ?? 'Opponent';
+            _initializePvpMatch(matchId, 'X', oppEmail);
+          }
+        }
+      });
+      
+      // Subscribe to matchmaking queue realtime changes
+      final queueChannel = supabase
+          .channel('queue_${myId}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'matchmaking_queue',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'user_id',
+              value: myId,
+            ),
+            callback: (payload) async {
+              final newRecord = payload.newRecord;
+              if (newRecord != null && newRecord['status'] == 'matched') {
+                final matchId = newRecord['match_id'];
+                final matchDetails = await PvpService.getMatch(matchId);
+                if (matchDetails != null) {
+                  final oppEmail = matchDetails['player2_email'] ?? 'Opponent';
+                  _initializePvpMatch(matchId, 'X', oppEmail);
+                }
+              }
+            },
+          );
+      queueChannel.subscribe();
+    } else {
+      // Error
+      _cancelMatchmaking();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(LanguageManager.instance.text.authRequestFailed),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  void _cancelMatchmaking() {
+    _cleanupPvpState();
+    if (Navigator.of(context, rootNavigator: true).canPop()) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    setState(() {});
+  }
+
+  void _showMatchmakingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return WillPopScope(
+          onWillPop: () async => false, // Prevent back button dismiss
+          child: Dialog(
+            backgroundColor: const Color(0xFF111827),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Pulsing Neon Icon
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF00F2FE).withOpacity(0.1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00F2FE).withOpacity(0.2),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            )
+                          ],
+                        ),
+                      ),
+                      const SizedBox(
+                        width: 80,
+                        height: 80,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00F2FE)),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.radar_rounded,
+                        color: Color(0xFF00F2FE),
+                        size: 40,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    LanguageManager.instance.text.searchingOpponent,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<int>(
+                    valueListenable: _matchmakingSecondsNotifier,
+                    builder: (context, seconds, child) {
+                      return Text(
+                        '${seconds}s',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: () {
+                      _cancelMatchmaking();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF43F5E).withOpacity(0.15),
+                      foregroundColor: const Color(0xFFF43F5E),
+                      side: const BorderSide(color: Color(0xFFF43F5E), width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      LanguageManager.instance.text.cancelMatchmaking,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _initializePvpMatch(String matchId, String role, String opponentEmail) async {
+    _matchmakingTimer?.cancel();
+    _matchmakingPollTimer?.cancel();
+    _matchmakingTimer = null;
+    _matchmakingPollTimer = null;
+    
+    if (_pvpIsMatching) {
+      Navigator.of(context, rootNavigator: true).pop(); // dismiss dialog
+      _pvpIsMatching = false;
+    }
+
+    AudioService.playDiamond(); // Sound effect for match found
+
+    setState(() {
+      _board.clear();
+      _moveHistory.clear();
+      _winner = null;
+      _winningLine = null;
+      _lastMove = null;
+      _hoveredCell = null;
+      _reviveCount = 0;
+      _hintCell = null;
+      _showWinEffect = false;
+      _winEffectLevel = null;
+      _pvcLossPending = false;
+      
+      _gameMode = GameMode.pvpOnline;
+      _boardSize = 15; // default online PvP board size is 15x15
+      _pvpMatchId = matchId;
+      _pvpPlayerRole = role;
+      _pvpOpponentEmail = opponentEmail;
+      _isXTurn = true; // X always starts first
+      _isOpponentConnected = true;
+    });
+
+    if (_lastViewportSize != null) {
+      _resetBoardView(_lastViewportSize!);
+    }
+
+    _subscribeToPvpMatch();
+    _startTurnTimer();
+  }
+
+  void _subscribeToPvpMatch() {
+    if (_pvpMatchId == null) return;
+    
+    final matchId = _pvpMatchId!;
+    
+    _pvpMatchChannel = supabase
+        .channel('pvp_match_$matchId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'pvp_matches',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: matchId,
+          ),
+          callback: (payload) {
+            final record = payload.newRecord;
+            if (record != null) {
+              _handlePvpMatchUpdate(record);
+            }
+          },
+        );
+    
+    _pvpMatchChannel!.subscribe();
+
+    _matchmakingPollTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+      if (_pvpMatchId != matchId || _winner != null || _gameMode != GameMode.pvpOnline) {
+        timer.cancel();
+        return;
+      }
+      final matchData = await PvpService.getMatch(matchId);
+      if (matchData != null) {
+        _handlePvpMatchUpdate(matchData);
+      }
+    });
+  }
+
+  void _handlePvpMatchUpdate(Map<String, dynamic> record) {
+    if (!mounted || _pvpMatchId != record['id'] || _gameMode != GameMode.pvpOnline) return;
+
+    final dbBoardData = record['board'];
+    Map<String, dynamic> dbBoard = {};
+    if (dbBoardData is Map) {
+      dbBoard = Map<String, dynamic>.from(dbBoardData);
+    }
+
+    final Map<Point<int>, String> newBoard = {};
+    dbBoard.forEach((key, value) {
+      final parts = key.split(',');
+      if (parts.length == 2) {
+        final r = int.parse(parts[0]);
+        final c = int.parse(parts[1]);
+        newBoard[Point(r, c)] = value.toString();
+      }
+    });
+
+    Point<int>? newMovePoint;
+    String? newMoveMark;
+
+    newBoard.forEach((point, mark) {
+      if (!_board.containsKey(point)) {
+        newMovePoint = point;
+        newMoveMark = mark;
+      }
+    });
+
+    bool stateChanged = false;
+
+    if (newMovePoint != null && newMoveMark != null) {
+      setState(() {
+        _board[newMovePoint!] = newMoveMark!;
+        _lastMove = newMovePoint;
+        _moveHistory.add(newMovePoint!);
+        stateChanged = true;
+
+        final activeSkin = _userProfile?.selectedSkin ?? 'default';
+        if (newMoveMark == 'X') {
+          AudioService.playPlaceX(activeSkin);
+        } else {
+          AudioService.playPlaceO(activeSkin);
+        }
+      });
+    }
+
+    final dbWinner = record['winner'];
+    final dbIsXTurn = record['is_x_turn'] ?? true;
+    final dbStatus = record['status'] ?? 'playing';
+
+    if (dbIsXTurn != _isXTurn || dbWinner != _winner) {
+      setState(() {
+        _isXTurn = dbIsXTurn;
+        _winner = dbWinner;
+        stateChanged = true;
+      });
+    }
+
+    if (stateChanged) {
+      _startTurnTimer();
+    }
+
+    if (dbStatus == 'finished' || dbWinner != null) {
+      _turnCountdownTimer?.cancel();
+      _turnCountdownTimer = null;
+      
+      if (dbWinner != null) {
+        _handlePvpWinEffect(dbWinner);
+      }
+    }
+  }
+
+  void _handlePvpWinEffect(String winner) {
+    if (_showWinEffect) return;
+
+    if (winner == 'draw') {
+      AudioService.playDraw();
+      setState(() {
+        _showWinEffect = true;
+        _winEffectLevel = WinEffectLevel.easy;
+        _winEffectLabel = LanguageManager.instance.text.drawBang;
+        _winEffectColor = Colors.orangeAccent;
+      });
+      return;
+    }
+
+    final isWinnerMe = _pvpPlayerRole == winner;
+    if (isWinnerMe) {
+      AudioService.playWinEasy();
+      AudioService.playDiamond();
+      setState(() {
+        _showWinEffect = true;
+        _winEffectLevel = WinEffectLevel.professional;
+        _winEffectLabel = LanguageManager.instance.text.victory;
+        _winEffectColor = const Color(0xFF00F2FE);
+      });
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(LanguageManager.instance.text.winReward(20)),
+            backgroundColor: const Color(0xFF00F2FE),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        _loadUserProfile();
+      });
+    } else {
+      AudioService.playLose();
+      setState(() {
+        _showWinEffect = true;
+        _winEffectLevel = WinEffectLevel.easy;
+        _winEffectLabel = winner == 'X' ? 'PLAYER X WIN!' : 'PLAYER O WIN!';
+        _winEffectColor = const Color(0xFFF43F5E);
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadUserProfile();
+      });
+    }
+  }
+
+  void _startTurnTimer() {
+    _turnCountdownTimer?.cancel();
+    setState(() {
+      _turnSecondsLeft = 30;
+    });
+
+    _turnCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_winner != null || _gameMode != GameMode.pvpOnline) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        if (_turnSecondsLeft > 0) {
+          _turnSecondsLeft--;
+        } else {
+          timer.cancel();
+          _handleTurnTimeout();
+        }
+      });
+    });
+  }
+
+  void _handleTurnTimeout() {
+    final isMyTurn = (_isXTurn && _pvpPlayerRole == 'X') || (!_isXTurn && _pvpPlayerRole == 'O');
+    if (isMyTurn) {
+      _surrender();
+    } else {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted && _winner == null && _gameMode == GameMode.pvpOnline) {
+          _claimPvpVictory();
+        }
+      });
+    }
+  }
+
+  Future<void> _claimPvpVictory() async {
+    if (_pvpMatchId == null || _userProfile == null) return;
+    final myId = _userProfile!.id;
+    final matchData = await PvpService.getMatch(_pvpMatchId!);
+    if (matchData != null) {
+      final p1 = matchData['player1_id'];
+      final p2 = matchData['player2_id'];
+      final opponentId = (myId == p1) ? p2 : p1;
+      await PvpService.recordMatchResult(
+        matchId: _pvpMatchId!,
+        winnerId: myId,
+        loserId: opponentId,
+        isDraw: false,
+      );
+    }
+  }
+
+  Future<void> _surrender() async {
+    if (_pvpMatchId == null || _userProfile == null || _winner != null) return;
+    
+    final myId = _userProfile!.id;
+    final matchData = await PvpService.getMatch(_pvpMatchId!);
+    if (matchData != null) {
+      final p1 = matchData['player1_id'];
+      final p2 = matchData['player2_id'];
+      final opponentId = (myId == p1) ? p2 : p1;
+      
+      await PvpService.recordMatchResult(
+        matchId: _pvpMatchId!,
+        winnerId: opponentId,
+        loserId: myId,
+        isDraw: false,
+      );
+    }
+  }
+
+  Future<void> _recordPvpWinner(String winnerMark) async {
+    if (_pvpMatchId == null || _userProfile == null) return;
+    final myId = _userProfile!.id;
+    final matchData = await PvpService.getMatch(_pvpMatchId!);
+    if (matchData != null) {
+      final p1 = matchData['player1_id'];
+      final p2 = matchData['player2_id'];
+      final winnerId = (winnerMark == 'X') ? p1 : p2;
+      final loserId = (winnerMark == 'X') ? p2 : p1;
+      await PvpService.recordMatchResult(
+        matchId: _pvpMatchId!,
+        winnerId: winnerId,
+        loserId: loserId,
+        isDraw: false,
+      );
+    }
+  }
+
+  Future<void> _recordPvpDraw() async {
+    if (_pvpMatchId == null || _userProfile == null) return;
+    final myId = _userProfile!.id;
+    final matchData = await PvpService.getMatch(_pvpMatchId!);
+    if (matchData != null) {
+      final p1 = matchData['player1_id'];
+      final p2 = matchData['player2_id'];
+      await PvpService.recordMatchResult(
+        matchId: _pvpMatchId!,
+        winnerId: p1,
+        loserId: p2,
+        isDraw: true,
+      );
+    }
+  }
+
+  Widget _buildPlayerRow({
+    required String email,
+    required String role,
+    required Color roleColor,
+    required String label,
+    required bool isActive,
+  }) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isActive ? roleColor.withOpacity(0.06) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isActive ? roleColor.withOpacity(0.3) : Colors.transparent,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: isActive ? roleColor : Colors.white30,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  email,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: roleColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: roleColor.withOpacity(0.3)),
+            ),
+            child: Text(
+              role,
+              style: TextStyle(
+                color: roleColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Handle cell tap
   void _handleCellTap(int r, int c) {
     final cell = Point(r, c);
-    // Block taps when AI is thinking or when it's AI's turn in PvC
-    if (_board[cell] != null || _winner != null || _aiThinking) return;
-    if (_gameMode == GameMode.pvc && !_isXTurn) return;
+    
+    // PvP Online Turn Verification
+    if (_gameMode == GameMode.pvpOnline) {
+      if (_pvpMatchId == null || _winner != null) return;
+      final isMyTurn = (_isXTurn && _pvpPlayerRole == 'X') || (!_isXTurn && _pvpPlayerRole == 'O');
+      if (!isMyTurn) return;
+      if (_board[cell] != null) return;
+    } else {
+      // Block taps when AI is thinking or when it's AI's turn in PvC
+      if (_board[cell] != null || _winner != null || _aiThinking) return;
+      if (_gameMode == GameMode.pvc && !_isXTurn) return;
+    }
 
     bool shouldTriggerAI = false;
     String? winnerAfterMove;
@@ -902,7 +1535,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
     setState(() {
       _hintCell = null; // Clear hint on move
-      final actualPlayer = (_gameMode == GameMode.pvp) ? (_isXTurn ? 'X' : 'O') : 'X';
+      final actualPlayer = (_gameMode == GameMode.pvp) 
+          ? (_isXTurn ? 'X' : 'O') 
+          : (_gameMode == GameMode.pvpOnline ? _pvpPlayerRole! : 'X');
       _board[cell] = actualPlayer;
       _lastMove = cell;
       _moveHistory.add(cell);
@@ -921,7 +1556,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         _winner = actualPlayer;
         _winningLine = winLine;
         winnerAfterMove = actualPlayer;
-        if (actualPlayer == 'X') {
+        
+        if (_gameMode == GameMode.pvpOnline) {
+          _recordPvpWinner(actualPlayer);
+        } else if (actualPlayer == 'X') {
           _scoreX++;
           if (_gameMode == GameMode.pvc) {
             final winDia = _getWinDiamonds();
@@ -944,8 +1582,12 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         if (_board.length == _boardSize * _boardSize) {
           _winner = 'Draw';
           winnerAfterMove = 'Draw';
-          _scoreDraws++;
-          if (_gameMode == GameMode.pvc) pvcOutcomeAfterMove = 'draw';
+          if (_gameMode == GameMode.pvpOnline) {
+            _recordPvpDraw();
+          } else {
+            _scoreDraws++;
+            if (_gameMode == GameMode.pvc) pvcOutcomeAfterMove = 'draw';
+          }
         } else {
           _isXTurn = !_isXTurn;
           if (_gameMode == GameMode.pvc && !_isXTurn) {
@@ -957,8 +1599,21 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       if (_hoveredCell == cell) _hoveredCell = null;
     });
 
+    // Send move to Supabase
+    if (_gameMode == GameMode.pvpOnline && _pvpMatchId != null) {
+      PvpService.makeMove(
+        matchId: _pvpMatchId!,
+        userId: _userProfile!.id,
+        board: _board,
+        nextIsXTurn: _isXTurn,
+        winner: winnerAfterMove,
+        lastMove: cell,
+      );
+      _startTurnTimer();
+    }
+
     // Trigger audio & visual effects AFTER setState
-    if (winnerAfterMove != null) {
+    if (winnerAfterMove != null && _gameMode != GameMode.pvpOnline) {
       _handleWinEffect(winnerAfterMove!);
     }
 
@@ -1513,7 +2168,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                       ),
                     ),
                     Text(
-                      'Local 2-Player Web App',
+                      'Online Arena Web App',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.blueGrey,
@@ -1616,15 +2271,24 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   const SizedBox(width: 6),
                   Text(LanguageManager.instance.text.aiThinking, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFF43F5E), fontSize: 12)),
                 ] else if (_winner == null) ...[
-                  Text(LanguageManager.instance.text.turn, style: const TextStyle(fontSize: 12, color: Colors.white54)),
                   Text(
-                    _isXTurn ? (_gameMode == GameMode.pvc ? LanguageManager.instance.text.youX : 'X') : 'O',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: _isXTurn ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E),
-                    ),
+                    _gameMode == GameMode.pvpOnline
+                        ? (((_isXTurn && _pvpPlayerRole == 'X') || (!_isXTurn && _pvpPlayerRole == 'O'))
+                            ? '${LanguageManager.instance.text.yourTurn} (${_turnSecondsLeft}s)'
+                            : '${LanguageManager.instance.text.opponentTurn} (${_turnSecondsLeft}s)')
+                        : LanguageManager.instance.text.turn,
+                    style: const TextStyle(fontSize: 12, color: Colors.white54, fontWeight: FontWeight.bold),
                   ),
+                  if (_gameMode != GameMode.pvpOnline) ...[
+                    Text(
+                      _isXTurn ? (_gameMode == GameMode.pvc ? LanguageManager.instance.text.youX : 'X') : 'O',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: _isXTurn ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E),
+                      ),
+                    ),
+                  ],
                 ] else if (_winner == 'Draw') ...[
                   Text(LanguageManager.instance.text.drawBang, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13)),
                 ] else ...[
@@ -1646,6 +2310,71 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   }
 
   Widget _buildMobileControls(BuildContext context) {
+    if (_gameMode == GameMode.pvpOnline) {
+      final isMatchFinished = _winner != null;
+      return Container(
+        padding: const EdgeInsets.all(16.0),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B0F19),
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.08), width: 1.0),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: isMatchFinished
+                  ? ElevatedButton.icon(
+                      onPressed: () {
+                        _resetMatch();
+                        setState(() {
+                          _gameMode = GameMode.pvp; // Return to local mode
+                        });
+                      },
+                      icon: const Icon(Icons.home_rounded),
+                      label: Text(LanguageManager.instance.text.close.toUpperCase()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00F2FE),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: _surrender,
+                      icon: const Icon(Icons.flag_rounded),
+                      label: Text(LanguageManager.instance.text.surrender.toUpperCase()),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF43F5E),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            IconButton(
+              onPressed: () {
+                if (_lastViewportSize != null) {
+                  _resetBoardView(_lastViewportSize!);
+                }
+              },
+              icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.white70),
+              tooltip: LanguageManager.instance.text.centerBoard,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withOpacity(0.05),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                ),
+                padding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
@@ -2077,6 +2806,51 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   }
 
   Widget _buildScoreboardCard() {
+    if (_gameMode == GameMode.pvpOnline) {
+      final isMyTurn = (_isXTurn && _pvpPlayerRole == 'X') || (!_isXTurn && _pvpPlayerRole == 'O');
+      final myEmail = widget.userEmail;
+      final oppEmail = _pvpOpponentEmail ?? 'Opponent';
+      
+      final myRole = _pvpPlayerRole ?? 'X';
+      final oppRole = myRole == 'X' ? 'O' : 'X';
+      
+      final myColor = myRole == 'X' ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E);
+      final oppColor = oppRole == 'X' ? const Color(0xFF00F2FE) : const Color(0xFFF43F5E);
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white.withOpacity(0.08)),
+        ),
+        child: Column(
+          children: [
+            // My card
+            _buildPlayerRow(
+              email: myEmail,
+              role: myRole,
+              roleColor: myColor,
+              label: 'BẠN',
+              isActive: isMyTurn,
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Divider(color: Colors.white10),
+            ),
+            // Opponent card
+            _buildPlayerRow(
+              email: oppEmail,
+              role: oppRole,
+              roleColor: oppColor,
+              label: 'ĐỐI THỦ',
+              isActive: !isMyTurn,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -2292,8 +3066,10 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           Row(
             children: [
               Expanded(child: _buildModeChip(LanguageManager.instance.text.twoPlayers, GameMode.pvp)),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(child: _buildModeChip(LanguageManager.instance.text.versusAi, GameMode.pvc)),
+              const SizedBox(width: 6),
+              Expanded(child: _buildModeChip(LanguageManager.instance.text.pvpOnline, GameMode.pvpOnline)),
             ],
           ),
           // Difficulty chips (only in PvC)
@@ -2370,6 +3146,68 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   }
 
   Widget _buildActionButtons() {
+    if (_gameMode == GameMode.pvpOnline) {
+      final isMatchFinished = _winner != null;
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: isMatchFinished
+                    ? ElevatedButton.icon(
+                        onPressed: () {
+                          _resetMatch();
+                          setState(() {
+                            _gameMode = GameMode.pvp; // Return to local mode
+                          });
+                        },
+                        icon: const Icon(Icons.home_rounded),
+                        label: Text(LanguageManager.instance.text.close.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00F2FE),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: _surrender,
+                        icon: const Icon(Icons.flag_rounded),
+                        label: Text(LanguageManager.instance.text.surrender.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFF43F5E),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shadowColor: const Color(0xFFF43F5E).withOpacity(0.4),
+                          elevation: 5,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              IconButton(
+                onPressed: () {
+                  if (_lastViewportSize != null) {
+                    _resetBoardView(_lastViewportSize!);
+                  }
+                },
+                icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.white70),
+                tooltip: LanguageManager.instance.text.centerBoard,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.04),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         // Undo & Reset Side-by-side
@@ -2440,6 +3278,13 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     return GestureDetector(
       onTap: () {
         if (_gameMode == mode) return;
+        if (mode == GameMode.pvpOnline) {
+          if (setModalState != null) {
+            Navigator.of(context).pop(); // Close bottom sheet first
+          }
+          _startMatchmaking();
+          return;
+        }
         setState(() {
           _gameMode = mode;
           _aiThinking = false;
@@ -2617,6 +3462,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                   gameMode: _gameMode,
                   skin: currentSkin,
                   gridLineColor: currentTheme.gridLineColor,
+                  playerRole: _pvpPlayerRole,
                 );
               }),
             );
@@ -2874,9 +3720,13 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                         Expanded(
                           child: _buildModeChip(LanguageManager.instance.text.twoPlayers, GameMode.pvp, setModalState: setModalState),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: _buildModeChip(LanguageManager.instance.text.versusAi, GameMode.pvc, setModalState: setModalState),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: _buildModeChip(LanguageManager.instance.text.pvpOnline, GameMode.pvpOnline, setModalState: setModalState),
                         ),
                       ],
                     ),
@@ -2998,11 +3848,13 @@ class CellParticlePainter extends CustomPainter {
   final double progress;
   final Color color;
   final List<CellParticle> particles;
+  final String skinId;
 
   CellParticlePainter({
     required this.progress,
     required this.color,
     required this.particles,
+    required this.skinId,
   });
 
   @override
@@ -3042,13 +3894,82 @@ class CellParticlePainter extends CustomPainter {
       final alpha = ((1.0 - t) * 220).round().clamp(0, 255);
       final particleSize = p.size * (1.0 - t * 0.6);
 
-      // Glow
       glowPaint.color = color.withAlpha((alpha * 0.4).round().clamp(0, 255));
-      canvas.drawCircle(Offset(x, y), particleSize * 1.8, glowPaint);
-
-      // Core dot
       dotPaint.color = color.withAlpha(alpha);
-      canvas.drawCircle(Offset(x, y), particleSize, dotPaint);
+
+      if (skinId == 'retro') {
+        // Square pixels for retro arcade skin
+        final rect = Rect.fromCenter(center: Offset(x, y), width: particleSize * 2.2, height: particleSize * 2.2);
+        canvas.drawRect(rect, glowPaint);
+        canvas.drawRect(rect, dotPaint);
+      } else if (skinId == 'ice') {
+        // Snowflake crosses for ice skin
+        final length = particleSize * 1.8;
+        final linePaint = Paint()
+          ..color = color.withAlpha(alpha)
+          ..strokeWidth = 1.2
+          ..style = PaintingStyle.stroke;
+        canvas.drawLine(Offset(x - length, y), Offset(x + length, y), linePaint);
+        canvas.drawLine(Offset(x, y - length), Offset(x, y + length), linePaint);
+      } else if (skinId == 'sakura') {
+        // Petal-like ovals for sakura
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(p.angle + t * pi);
+        final rect = Rect.fromCenter(center: Offset.zero, width: particleSize * 2.6, height: particleSize * 1.3);
+        canvas.drawOval(rect, glowPaint);
+        canvas.drawOval(rect, dotPaint);
+        canvas.restore();
+      } else if (skinId == 'volcano') {
+        // Rising flame-like triangles
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(p.angle);
+        final path = Path();
+        path.moveTo(particleSize * 2, 0);
+        path.lineTo(-particleSize, -particleSize);
+        path.lineTo(-particleSize, particleSize);
+        path.close();
+        canvas.drawPath(path, glowPaint);
+        canvas.drawPath(path, dotPaint);
+        canvas.restore();
+      } else if (skinId == 'emerald') {
+        // Leaf-like curves
+        canvas.save();
+        canvas.translate(x, y);
+        canvas.rotate(p.angle);
+        final path = Path();
+        path.moveTo(-particleSize, 0);
+        path.quadraticBezierTo(0, -particleSize * 1.5, particleSize * 1.5, 0);
+        path.quadraticBezierTo(0, particleSize * 1.5, -particleSize, 0);
+        path.close();
+        canvas.drawPath(path, glowPaint);
+        canvas.drawPath(path, dotPaint);
+        canvas.restore();
+      } else if (skinId == 'cosmic' || skinId == 'amethyst') {
+        // Diamond star sparkles
+        final path = Path();
+        path.moveTo(x, y - particleSize * 1.8);
+        path.lineTo(x + particleSize * 1.2, y);
+        path.lineTo(x, y + particleSize * 1.8);
+        path.lineTo(x - particleSize * 1.2, y);
+        path.close();
+        canvas.drawPath(path, glowPaint);
+        canvas.drawPath(path, dotPaint);
+      } else if (skinId == 'solar') {
+        // Solar ray/sparks stretching outwards
+        final linePaint = Paint()
+          ..color = color.withAlpha(alpha)
+          ..strokeWidth = 2.0 * (1.0 - t)
+          ..style = PaintingStyle.stroke;
+        final endX = x + cos(p.angle) * particleSize * 1.8;
+        final endY = y + sin(p.angle) * particleSize * 1.8;
+        canvas.drawLine(Offset(x, y), Offset(endX, endY), linePaint);
+      } else {
+        // Default circular dots
+        canvas.drawCircle(Offset(x, y), particleSize * 1.8, glowPaint);
+        canvas.drawCircle(Offset(x, y), particleSize, dotPaint);
+      }
     }
 
     // ── 3. Star sparks at early phase ────────────────────────────────────
@@ -3088,6 +4009,7 @@ class CaroCellWidget extends StatefulWidget {
   final GameMode gameMode;
   final SkinConfig skin;
   final Color gridLineColor;
+  final String? playerRole;
 
   const CaroCellWidget({
     super.key,
@@ -3105,6 +4027,7 @@ class CaroCellWidget extends StatefulWidget {
     required this.gameMode,
     required this.skin,
     required this.gridLineColor,
+    this.playerRole,
   });
 
   @override
@@ -3213,8 +4136,14 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
       cellBorder = Border.all(color: widget.gridLineColor, width: 0.5);
     }
 
+    final String activeRole = widget.playerRole ?? (widget.gameMode == GameMode.pvc ? 'X' : (widget.isXTurn ? 'X' : 'O'));
+    
+    final bool isMyTurn = widget.gameMode == GameMode.pvpOnline
+        ? (widget.playerRole != null && ((widget.isXTurn && widget.playerRole == 'X') || (!widget.isXTurn && widget.playerRole == 'O')))
+        : (widget.gameMode == GameMode.pvp || widget.isXTurn);
+
     final canInteract = widget.winner == null && mark == null &&
-        !widget.aiThinking && (widget.gameMode == GameMode.pvp || widget.isXTurn);
+        !widget.aiThinking && isMyTurn;
 
     Widget cellContent = Container(
       width: widget.cellSize,
@@ -3235,6 +4164,7 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
                   progress: _particleController.value,
                   color: mark == 'O' ? widget.skin.oColor : widget.skin.xColor,
                   particles: _particles,
+                  skinId: widget.skin.id,
                 ),
               );
             },
@@ -3247,7 +4177,7 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
           else if (_hovered && canInteract)
             Opacity(
               opacity: 0.28,
-              child: _buildMarkWidget(widget.isXTurn ? 'X' : 'O', isPreview: true),
+              child: _buildMarkWidget(activeRole, isPreview: true),
             ),
           if (isHint && mark == null)
             AnimatedBuilder(
@@ -3285,31 +4215,78 @@ class _CaroCellWidgetState extends State<CaroCellWidget> with TickerProviderStat
   }
 
   Widget _buildMarkWidget(String mark, {bool isWinning = false, bool isPreview = false}) {
-    if (mark == 'X') {
-      return Text(
-        'X',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
-          color: isWinning ? Colors.greenAccent : widget.skin.xColor,
-          shadows: isWinning
-              ? [const Shadow(color: Colors.greenAccent, blurRadius: 14)]
-              : widget.skin.xShadow,
-        ),
-      );
-    } else {
-      return Text(
-        'O',
-        style: TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w900,
-          color: isWinning ? Colors.greenAccent : widget.skin.oColor,
-          shadows: isWinning
-              ? [const Shadow(color: Colors.greenAccent, blurRadius: 14)]
-              : widget.skin.oShadow,
-        ),
-      );
+    final isX = mark == 'X';
+    final baseColor = isWinning 
+        ? Colors.greenAccent 
+        : (isX ? widget.skin.xColor : widget.skin.oColor);
+        
+    // Base shadows
+    List<Shadow> activeShadows = isWinning
+        ? [const Shadow(color: Colors.greenAccent, blurRadius: 14)]
+        : (isX ? widget.skin.xShadow : widget.skin.oShadow);
+
+    // Apply custom styling based on skin ID
+    String fontFamily = 'system-ui';
+    FontWeight fontWeight = FontWeight.w900;
+    double fontSize = 22;
+
+    if (!isWinning) {
+      if (widget.skin.id == 'gold') {
+        fontFamily = 'Georgia'; // Elegant luxury serif
+        fontWeight = FontWeight.w800;
+        fontSize = 24;
+      } else if (widget.skin.id == 'retro') {
+        fontFamily = 'monospace'; // Retro blocky/pixel feel
+        fontWeight = FontWeight.w900;
+        fontSize = 23;
+        // Make shadow flat and offset like old school arcade games
+        activeShadows = [
+          Shadow(color: isX ? const Color(0xFF1B5E20) : const Color(0xFFBF360C), offset: const Offset(2, 2)),
+        ];
+      } else if (widget.skin.id == 'cyberpunk') {
+        // Neon glitch offset shadows
+        activeShadows = [
+          const Shadow(color: Color(0xFF00FFFF), blurRadius: 2, offset: Offset(-1.5, 1.5)),
+          const Shadow(color: Color(0xFFFF00FF), blurRadius: 2, offset: Offset(1.5, -1.5)),
+        ];
+      } else if (widget.skin.id == 'volcano') {
+        // Overlapping intense fire shadow
+        activeShadows = [
+          const Shadow(color: Color(0xFFFF4500), blurRadius: 4, offset: Offset(-1, -1)),
+          const Shadow(color: Color(0xFFFF0000), blurRadius: 10, offset: Offset(1, 1)),
+          const Shadow(color: Color(0xFFFFD700), blurRadius: 18),
+        ];
+      } else if (widget.skin.id == 'cosmic') {
+        // Deep space cosmic glow
+        activeShadows = [
+          Shadow(color: isX ? const Color(0xFFE040FB) : const Color(0xFF00E5FF), blurRadius: 10),
+          const Shadow(color: Colors.deepPurpleAccent, blurRadius: 20),
+        ];
+      } else if (widget.skin.id == 'solar') {
+        // Sunburst flare glow
+        activeShadows = [
+          Shadow(color: isX ? const Color(0xFFFFD600) : const Color(0xFFFF6D00), blurRadius: 8),
+          const Shadow(color: Colors.amber, blurRadius: 20),
+        ];
+      } else if (widget.skin.id == 'amethyst') {
+        // Mysterious amethyst shine
+        activeShadows = [
+          Shadow(color: isX ? const Color(0xFFD500F9) : const Color(0xFF7C4DFF), blurRadius: 8),
+          const Shadow(color: Colors.purple, blurRadius: 16),
+        ];
+      }
     }
+
+    return Text(
+      mark,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        fontFamily: fontFamily,
+        color: baseColor,
+        shadows: activeShadows,
+      ),
+    );
   }
 }
 

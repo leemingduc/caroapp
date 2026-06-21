@@ -83,6 +83,85 @@ class AudioService {
         gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.16).toJS);
         osc.start(now.toJS);
         osc.stop((now + 0.18).toJS);
+      } else if (skinId == 'cosmic') {
+        // Cosmic Nebula - Sci-Fi laser frequency sweep going up
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle'.toJS;
+        osc.frequency.setValueAtTime(800.0.toJS, now.toJS);
+        osc.frequency.exponentialRampToValueAtTime(1200.0.toJS, (now + 0.10).toJS);
+        gain.gain.setValueAtTime(0.18.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.15).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.18).toJS);
+      } else if (skinId == 'retro') {
+        // Retro Arcade - Square wave classic NES sound jump
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square'.toJS;
+        osc.frequency.setValueAtTime(400.0.toJS, now.toJS);
+        osc.frequency.setValueAtTime(800.0.toJS, (now + 0.05).toJS);
+        gain.gain.setValueAtTime(0.12.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.12).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.15).toJS);
+      } else if (skinId == 'sakura') {
+        // Sakura Blossom - Soft glass chime tone
+        _playNote(ctx, 1500, now, 0.14, 0.20, 'sine');
+        _playNote(ctx, 2000, now + 0.04, 0.08, 0.18, 'sine');
+      } else if (skinId == 'ice') {
+        // Ice Crystal - Crisp high-pitched glass clink
+        _playNote(ctx, 2200, now, 0.15, 0.08, 'sine');
+        _playNote(ctx, 2700, now + 0.02, 0.06, 0.06, 'sine');
+      } else if (skinId == 'emerald') {
+        // Emerald Forest - Hollow organic bamboo pluck tone
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle'.toJS;
+        osc.frequency.setValueAtTime(350.0.toJS, now.toJS);
+        osc.frequency.exponentialRampToValueAtTime(220.0.toJS, (now + 0.08).toJS);
+        gain.gain.setValueAtTime(0.20.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.08).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.10).toJS);
+      } else if (skinId == 'cyberpunk') {
+        // Cyberpunk Neon - Gritty high-voltage spark sound
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sawtooth'.toJS;
+        osc.frequency.setValueAtTime(880.0.toJS, now.toJS);
+        osc.frequency.linearRampToValueAtTime(110.0.toJS, (now + 0.08).toJS);
+        gain.gain.setValueAtTime(0.12.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.10).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.12).toJS);
+      } else if (skinId == 'amethyst') {
+        // Royal Amethyst - Mystical arpeggio pluck chord
+        _playNote(ctx, 440, now, 0.12, 0.20, 'sine');
+        _playNote(ctx, 554, now + 0.02, 0.10, 0.18, 'sine');
+        _playNote(ctx, 659, now + 0.04, 0.08, 0.18, 'sine');
+      } else if (skinId == 'solar') {
+        // Solar Flare - Swelling frequency rise sweep
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine'.toJS;
+        osc.frequency.setValueAtTime(300.0.toJS, now.toJS);
+        osc.frequency.exponentialRampToValueAtTime(1200.0.toJS, (now + 0.15).toJS);
+        gain.gain.setValueAtTime(0.01.toJS, now.toJS);
+        gain.gain.linearRampToValueAtTime(0.20.toJS, (now + 0.05).toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.18).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.20).toJS);
       } else {
         // Neon mặc định
         final osc = ctx.createOscillator();
@@ -134,6 +213,76 @@ class AudioService {
         osc.frequency.setValueAtTime(400.0.toJS, now.toJS);
         osc.frequency.exponentialRampToValueAtTime(650.0.toJS, (now + 0.15).toJS);
         gain.gain.setValueAtTime(0.20.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.18).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.20).toJS);
+      } else if (skinId == 'cosmic') {
+        // Cosmic Nebula - Two quick soft echo tones
+        _playNote(ctx, 600, now, 0.15, 0.25, 'sine');
+        _playNote(ctx, 900, now + 0.05, 0.10, 0.20, 'sine');
+      } else if (skinId == 'retro') {
+        // Retro Arcade - Square wave classic NES jump descending
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'square'.toJS;
+        osc.frequency.setValueAtTime(600.0.toJS, now.toJS);
+        osc.frequency.setValueAtTime(300.0.toJS, (now + 0.04).toJS);
+        gain.gain.setValueAtTime(0.12.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.10).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.12).toJS);
+      } else if (skinId == 'sakura') {
+        // Sakura Blossom - Soft glass chime tone (slightly lower pitch than X)
+        _playNote(ctx, 1200, now, 0.14, 0.22, 'sine');
+        _playNote(ctx, 1600, now + 0.05, 0.08, 0.20, 'sine');
+      } else if (skinId == 'ice') {
+        // Ice Crystal - Crisp high-pitched glass clink (slightly lower pitch than X)
+        _playNote(ctx, 1800, now, 0.15, 0.09, 'sine');
+        _playNote(ctx, 2200, now + 0.02, 0.06, 0.07, 'sine');
+      } else if (skinId == 'emerald') {
+        // Emerald Forest - Hollow organic bamboo pluck tone (slightly lower pitch than X)
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle'.toJS;
+        osc.frequency.setValueAtTime(280.0.toJS, now.toJS);
+        osc.frequency.exponentialRampToValueAtTime(180.0.toJS, (now + 0.08).toJS);
+        gain.gain.setValueAtTime(0.20.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.08).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.10).toJS);
+      } else if (skinId == 'cyberpunk') {
+        // Cyberpunk Neon - Gritty high-voltage spark sound (slightly lower pitch than X)
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sawtooth'.toJS;
+        osc.frequency.setValueAtTime(660.0.toJS, now.toJS);
+        osc.frequency.linearRampToValueAtTime(88.0.toJS, (now + 0.10).toJS);
+        gain.gain.setValueAtTime(0.12.toJS, now.toJS);
+        gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.12).toJS);
+        osc.start(now.toJS);
+        osc.stop((now + 0.15).toJS);
+      } else if (skinId == 'amethyst') {
+        // Royal Amethyst - Mystical arpeggio pluck chord (minor chord for O)
+        _playNote(ctx, 392, now, 0.12, 0.22, 'sine');
+        _playNote(ctx, 466, now + 0.02, 0.10, 0.20, 'sine');
+        _playNote(ctx, 587, now + 0.04, 0.08, 0.20, 'sine');
+      } else if (skinId == 'solar') {
+        // Solar Flare - Swelling frequency rise sweep (slightly lower pitch than X)
+        final osc = ctx.createOscillator();
+        final gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine'.toJS;
+        osc.frequency.setValueAtTime(250.0.toJS, now.toJS);
+        osc.frequency.exponentialRampToValueAtTime(1000.0.toJS, (now + 0.15).toJS);
+        gain.gain.setValueAtTime(0.01.toJS, now.toJS);
+        gain.gain.linearRampToValueAtTime(0.20.toJS, (now + 0.05).toJS);
         gain.gain.exponentialRampToValueAtTime(0.001.toJS, (now + 0.18).toJS);
         osc.start(now.toJS);
         osc.stop((now + 0.20).toJS);

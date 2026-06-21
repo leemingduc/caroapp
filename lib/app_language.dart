@@ -94,6 +94,17 @@ class AppText {
   String get gameMode => isVi ? 'CHẾ ĐỘ CHƠI' : 'GAME MODE';
   String get twoPlayers => isVi ? '👥 2 Người' : '👥 2 Players';
   String get versusAi => isVi ? '🤖 vs Máy' : '🤖 vs AI';
+  String get pvpOnline => isVi ? '⚔️ PvP Online' : '⚔️ Online PvP';
+  String get searchingOpponent => isVi ? 'Đang tìm đối thủ...' : 'Searching for opponent...';
+  String get matchmaking => isVi ? 'Ghép Trận' : 'Matchmaking';
+  String get cancelMatchmaking => isVi ? 'Hủy Tìm Trận' : 'Cancel Matchmaking';
+  String get opponentTurn => isVi ? 'Lượt của đối thủ...' : 'Opponent\'s turn...';
+  String get yourTurn => isVi ? 'Lượt của BẠN!' : 'Your turn!';
+  String get surrender => isVi ? 'Đầu hàng' : 'Surrender';
+  String get turnTimeout => isVi ? 'Hết thời gian lượt!' : 'Turn timeout!';
+  String get opponentDisconnected => isVi ? 'Đối thủ đã rời trận hoặc đầu hàng!' : 'Opponent left or surrendered!';
+  String timeRemaining(int s) => isVi ? 'Thời gian còn lại: ${s}s' : 'Time remaining: ${s}s';
+  String get waitingOpponent => isVi ? 'Đang chờ đối thủ...' : 'Waiting for opponent...';
   String get aiDifficulty => isVi ? 'ĐỘ KHÓ AI' : 'AI DIFFICULTY';
   String get doubleBlock => isVi ? 'Chặn 2 đầu:' : 'Double-block rule:';
   String get doubleBlockLong => isVi ? 'Luật chặn hai đầu:' : 'Double-block rule:';
