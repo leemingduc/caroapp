@@ -231,6 +231,20 @@ class AppText {
       ? 'Việc thay đổi kích thước bàn cờ sẽ bắt đầu một trận đấu mới và làm sạch bàn cờ hiện tại. Bạn có chắc chắn muốn tiếp tục?'
       : 'Changing the board size will start a new match and clear the current board. Are you sure you want to continue?';
   String get drawLabel => isVi ? 'HÒA' : 'DRAW';
+
+  // Profile & Change Password
+  String get profileTitle => isVi ? 'HỒ SƠ' : 'PROFILE';
+  String get changePassword => isVi ? 'Đổi mật khẩu' : 'Change password';
+  String get currentPassword => isVi ? 'Mật khẩu hiện tại' : 'Current password';
+  String get newPassword => isVi ? 'Mật khẩu mới' : 'New password';
+  String get confirmNewPassword => isVi ? 'Xác nhận mật khẩu mới' : 'Confirm new password';
+  String get currentPasswordRequired => isVi ? 'Vui lòng nhập mật khẩu hiện tại' : 'Please enter your current password';
+  String get newPasswordRequired => isVi ? 'Vui lòng nhập mật khẩu mới' : 'Please enter a new password';
+  String get confirmNewPasswordRequired => isVi ? 'Vui lòng xác nhận mật khẩu mới' : 'Please confirm your new password';
+  String get currentPasswordIncorrect => isVi ? 'Mật khẩu hiện tại không chính xác' : 'Current password is incorrect';
+  String get changePasswordSuccess => isVi ? 'Thay đổi mật khẩu thành công!' : 'Password changed successfully!';
+  String get changePasswordFailed => isVi ? 'Thay đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.' : 'Password change failed. Please check your current password.';
+  String get saving => isVi ? 'Đang lưu...' : 'Saving...';
 }
 
 class LanguageManager {
