@@ -10,6 +10,7 @@ import 'services/audio_service.dart';
 import 'services/pvp_service.dart';
 import 'screens/shop_dialog.dart';
 import 'screens/leaderboard_dialog.dart';
+import 'screens/profile_dialog.dart';
 import 'screens/win_effect_overlay.dart';
 import 'app_language.dart';
 import 'dart:async';
@@ -839,6 +840,17 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     showDialog(
       context: context,
       builder: (context) => LeaderboardDialog(
+        language: LanguageManager.instance.currentLanguage,
+      ),
+    );
+  }
+
+  void _openProfile() {
+    if (_userProfile == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => ProfileDialog(
+        userProfile: _userProfile!,
         language: LanguageManager.instance.currentLanguage,
       ),
     );
@@ -2111,7 +2123,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             ),
             const SizedBox(width: 4),
             IconButton(
-              tooltip: 'Dang xuat',
+              tooltip: LanguageManager.instance.text.profileTitle,
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              color: Colors.white70,
+              onPressed: _openProfile,
+              icon: const Icon(Icons.manage_accounts_rounded),
+            ),
+            IconButton(
+              tooltip: LanguageManager.instance.text.signOut,
               visualDensity: VisualDensity.compact,
               iconSize: 18,
               color: Colors.white70,
