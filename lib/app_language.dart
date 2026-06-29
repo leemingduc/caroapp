@@ -245,6 +245,72 @@ class AppText {
   String get changePasswordSuccess => isVi ? 'Thay đổi mật khẩu thành công!' : 'Password changed successfully!';
   String get changePasswordFailed => isVi ? 'Thay đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.' : 'Password change failed. Please check your current password.';
   String get saving => isVi ? 'Đang lưu...' : 'Saving...';
+
+  // ─── Friends ───────────────────────────────────────────────────────────────
+  String get friends => isVi ? 'Bạn bè' : 'Friends';
+  String get friendsTitle => isVi ? 'BẠN BÈ' : 'FRIENDS';
+  String get closeFriends => isVi ? 'ĐÓNG' : 'CLOSE';
+  String get friendsTab => isVi ? 'BẠN BÈ' : 'FRIENDS';
+  String get requestsTab => isVi ? 'LỜI MỜI' : 'REQUESTS';
+  String get searchTab => isVi ? 'TÌM KIẾM' : 'SEARCH';
+  String get searchByEmail => isVi ? 'Tìm theo email...' : 'Search by email...';
+  String get addFriend => isVi ? 'Kết bạn' : 'Add friend';
+  String get friendRequestSent => isVi ? '✅ Đã gửi lời mời kết bạn!' : '✅ Friend request sent!';
+  String get friendRequestExists => isVi ? 'Lời mời đã tồn tại hoặc đã là bạn bè.' : 'Request already sent or already friends.';
+  String get friendAccepted => isVi ? '✅ Đã chấp nhận kết bạn!' : '✅ Friend request accepted!';
+  String get friendRemoved => isVi ? 'Đã xóa bạn bè.' : 'Friend removed.';
+  String get friendActionFailed => isVi ? '❌ Thao tác thất bại. Vui lòng thử lại.' : '❌ Action failed. Please try again.';
+  String get noFriendsYet => isVi ? 'Bạn chưa có bạn bè. Hãy tìm kiếm và kết bạn!' : 'No friends yet. Search and add some!';
+  String get noPendingRequests => isVi ? 'Không có lời mời nào đang chờ.' : 'No pending requests.';
+  String get userNotFound => isVi ? 'Không tìm thấy người dùng với email này.' : 'No user found with this email.';
+  String get online => isVi ? 'Đang online' : 'Online';
+  String get offline => isVi ? 'Offline' : 'Offline';
+  String get accept => isVi ? 'Đồng ý' : 'Accept';
+  String get decline => isVi ? 'Từ chối' : 'Decline';
+  String get removeFriend => isVi ? 'Xóa bạn' : 'Remove';
+
+  // ─── Custom Room ────────────────────────────────────────────────────────────
+  String get pvpModeTitle => isVi ? 'CHỌN CHẾ ĐỘ PVP' : 'CHOOSE PVP MODE';
+  String get autoMatchmaking => isVi ? 'Ghép trận tự động' : 'Auto Matchmaking';
+  String get autoMatchmakingDesc => isVi ? 'Tự động tìm đối thủ ngẫu nhiên' : 'Find a random opponent automatically';
+  String get createRoom => isVi ? 'Tạo phòng riêng' : 'Create Room';
+  String get createRoomDesc => isVi ? 'Tạo phòng với mã 6 số và chia sẻ cho bạn bè' : 'Create a room with a 6-digit code and share it';
+  String get joinRoom => isVi ? 'Vào phòng riêng' : 'Join Room';
+  String get joinRoomDesc => isVi ? 'Nhập mã phòng 6 số để vào đấu với bạn bè' : 'Enter a 6-digit room code to play with a friend';
+  String get yourRoomCode => isVi ? 'Mã phòng của bạn:' : 'Your room code:';
+  String get waitingForGuest => isVi ? 'Đang chờ đối thủ vào phòng...' : 'Waiting for opponent to join...';
+  String get cancelRoom => isVi ? 'Hủy phòng' : 'Cancel Room';
+  String get enterRoomCode => isVi ? 'Nhập mã phòng 6 số' : 'Enter 6-digit room code';
+  String get roomCodeHint => isVi ? 'Mã 6 chữ số' : '6-digit code';
+  String get joinRoomButton => isVi ? 'Vào phòng' : 'Join';
+  String get roomNotFound => isVi ? '❌ Không tìm thấy phòng hoặc phòng đã đầy.' : '❌ Room not found or already full.';
+  String get roomSelfJoin => isVi ? '❌ Bạn không thể tự vào phòng của mình.' : '❌ You cannot join your own room.';
+  String get roomJoinFailed => isVi ? '❌ Không thể vào phòng. Vui lòng thử lại.' : '❌ Could not join the room. Please try again.';
+  String get copyCode => isVi ? 'Sao chép' : 'Copy';
+  String get codeCopied => isVi ? '📋 Đã sao chép mã phòng!' : '📋 Room code copied!';
+
+  // ─── Emotes ─────────────────────────────────────────────────────────────────
+  String get emotesTab => isVi ? 'BIỂU CẢM' : 'EMOTES';
+  String get emoteShopTitle => isVi ? 'BIỂU CẢM' : 'EMOTES';
+  String get emoteUnlocked => isVi ? '🎉 Đã mở khóa biểu cảm!' : '🎉 Emote unlocked!';
+  String get emoteBuyFailed => isVi ? '❌ Mua biểu cảm thất bại. Vui lòng thử lại.' : '❌ Emote purchase failed. Please try again.';
+  String get emoteAlreadyOwned => isVi ? 'Biểu cảm này đã được mở khóa.' : 'This emote is already unlocked.';
+  String get locked => isVi ? 'Khóa' : 'Locked';
+  String get sendEmote => isVi ? 'Gửi biểu cảm' : 'Send Emote';
+
+  // ─── Quick Chat ──────────────────────────────────────────────────────────────
+  String get quickChatTab => isVi ? 'CHAT NHANH' : 'QUICK CHAT';
+  String get quickChatTitle => isVi ? 'Chat nhanh' : 'Quick Chat';
+  List<String> get quickChatMessages => [
+    isVi ? 'Chào đối thủ! Chúc may mắn.' : 'Hello opponent! Good luck.',
+    isVi ? 'Bạn đánh hay quá!' : 'Nice move!',
+    isVi ? 'Chờ tôi một chút nhé...' : 'Give me a second...',
+    isVi ? 'Cảm ơn nhé!' : 'Thank you!',
+    isVi ? 'Xin lỗi, sơ suất quá!' : 'Sorry, my bad!',
+    isVi ? 'Chơi tiếp ván nữa không?' : 'Want to play another round?',
+    isVi ? 'Đừng đầu hàng nhé!' : 'Don\'t give up!',
+    isVi ? 'Chúc mừng chiến thắng!' : 'Congratulations on your win!',
+  ];
 }
 
 class LanguageManager {
