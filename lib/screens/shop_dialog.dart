@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../models/skin_theme_config.dart';
+import '../models/emote_config.dart';
 import '../services/db_service.dart';
 import '../app_language.dart';
 
@@ -30,7 +31,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _currentProfile = widget.userProfile;
   }
 
@@ -178,6 +179,35 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
     }
   }
 
+  Future<void> _buyEmote(EmoteConfig emote) async {
+    if (_isProcessing || _currentProfile.diamonds < emote.cost) return;
+    if (_currentProfile.unlockedEmotes.contains(emote.id)) return;
+
+    setState(() => _isProcessing = true);
+    try {
+      final updated = List<String>.from(_currentProfile.unlockedEmotes);
+      if (!updated.contains(emote.id)) updated.add(emote.id);
+      final updatedProfile = _currentProfile.copyWith(
+        diamonds: _currentProfile.diamonds - emote.cost,
+        unlockedEmotes: updated,
+      );
+
+      final success = await DbService.saveProfile(updatedProfile);
+      if (!mounted) return;
+      if (success) {
+        setState(() => _currentProfile = updatedProfile);
+        widget.onProfileUpdated(updatedProfile);
+        _showSuccessSnackBar(_text.emoteUnlocked);
+      } else {
+        _showErrorSnackBar(_text.emoteBuyFailed);
+      }
+    } catch (_) {
+      if (mounted) _showErrorSnackBar(_text.emoteBuyFailed);
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   void _showSuccessSnackBar(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -289,6 +319,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
                 tabs: [
                   Tab(text: _text.skinsTab, icon: const Icon(Icons.grid_4x4_rounded, size: 20)),
                   Tab(text: _text.themesTab, icon: const Icon(Icons.palette_outlined, size: 20)),
+                  Tab(text: _text.emotesTab, icon: const Icon(Icons.emoji_emotions_outlined, size: 20)),
                 ],
               ),
               
@@ -301,6 +332,7 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
                     children: [
                       _buildSkinsTab(),
                       _buildThemesTab(),
+                      _buildEmotesTab(),
                     ],
                   ),
                 ),
@@ -419,6 +451,60 @@ class _ShopDialogState extends State<ShopDialog> with SingleTickerProviderStateM
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEmotesTab() {
+    final lang = widget.language;
+    return GridView.count(
+      crossAxisCount: 4,
+      padding: const EdgeInsets.all(16),
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      children: EmoteConfig.allEmotes.map((emote) {
+        final owned = _currentProfile.unlockedEmotes.contains(emote.id);
+        final canAfford = _currentProfile.diamonds >= emote.cost;
+        return GestureDetector(
+          onTap: owned || emote.cost == 0
+              ? null
+              : (canAfford ? () => _buyEmote(emote) : null),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: owned
+                  ? const Color(0xFF00F2FE).withOpacity(0.08)
+                  : Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: owned
+                    ? const Color(0xFF00F2FE).withOpacity(0.4)
+                    : Colors.white.withOpacity(0.08),
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(emote.emoji, style: const TextStyle(fontSize: 28)),
+                const SizedBox(height: 4),
+                if (!owned && emote.cost > 0)
+                  Text(
+                    '${emote.cost} 💎',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: canAfford ? const Color(0xFF00F2FE) : Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                else
+                  Text(
+                    owned ? (lang == AppLanguage.vi ? 'Có sẵn' : 'Owned') : '🔒',
+                    style: const TextStyle(fontSize: 10, color: Colors.white38),
+                  ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 
