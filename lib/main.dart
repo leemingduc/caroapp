@@ -13,6 +13,7 @@ import 'screens/leaderboard_dialog.dart';
 import 'screens/profile_dialog.dart';
 import 'screens/win_effect_overlay.dart';
 import 'screens/friends_dialog.dart';
+import 'screens/custom_room_dialog.dart';
 import 'app_language.dart';
 import 'dart:async';
 
@@ -1157,6 +1158,35 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           ),
         );
       },
+    );
+  }
+
+  void _showPvpModeDialog() {
+    if (_userProfile == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => CustomRoomDialog(
+        userProfile: _userProfile!,
+        language: LanguageManager.instance.currentLanguage,
+        onMatchReady: (matchId, role, opponentEmail) async {
+          if (matchId.isEmpty) {
+            // Auto matchmaking được chọn
+            _startMatchmaking();
+            return;
+          }
+          // Custom room: lấy thêm thông tin nếu cần
+          String opp = opponentEmail;
+          if (opp.isEmpty) {
+            final details = await PvpService.getMatch(matchId);
+            if (details != null) {
+              opp = role == 'X'
+                  ? (details['player2_email'] ?? 'Opponent')
+                  : (details['player1_email'] ?? 'Opponent');
+            }
+          }
+          _initializePvpMatch(matchId, role, opp);
+        },
+      ),
     );
   }
 
@@ -3325,7 +3355,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
           if (setModalState != null) {
             Navigator.of(context).pop(); // Close bottom sheet first
           }
-          _startMatchmaking();
+          _showPvpModeDialog();
           return;
         }
         setState(() {
