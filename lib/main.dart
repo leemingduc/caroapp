@@ -12,6 +12,7 @@ import 'screens/shop_dialog.dart';
 import 'screens/leaderboard_dialog.dart';
 import 'screens/profile_dialog.dart';
 import 'screens/win_effect_overlay.dart';
+import 'screens/friends_dialog.dart';
 import 'app_language.dart';
 import 'dart:async';
 
@@ -850,6 +851,17 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     showDialog(
       context: context,
       builder: (context) => ProfileDialog(
+        userProfile: _userProfile!,
+        language: LanguageManager.instance.currentLanguage,
+      ),
+    );
+  }
+
+  void _openFriends() {
+    if (_userProfile == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => FriendsDialog(
         userProfile: _userProfile!,
         language: LanguageManager.instance.currentLanguage,
       ),
@@ -2805,6 +2817,17 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
                 onPressed: _loadingProfile ? null : _openShop,
                 icon: const Icon(Icons.storefront_rounded, size: 16, color: Color(0xFF00F2FE)),
                 label: Text(LanguageManager.instance.text.shop, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              ),
+              Container(
+                width: 1.5,
+                height: 16,
+                color: Colors.white.withOpacity(0.08),
+              ),
+              TextButton.icon(
+                onPressed: _loadingProfile ? null : _openFriends,
+                icon: const Icon(Icons.people_rounded, size: 16, color: Color(0xFF4CAF50)),
+                label: Text(LanguageManager.instance.text.friends, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 style: TextButton.styleFrom(padding: EdgeInsets.zero),
               ),
               Container(
