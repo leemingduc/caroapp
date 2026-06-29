@@ -11,6 +11,7 @@ class UserProfile {
   final List<String> unlockedThemes;
   final String selectedSkin;
   final String selectedTheme;
+  final List<String> unlockedEmotes;
 
   UserProfile({
     required this.id,
@@ -23,6 +24,7 @@ class UserProfile {
     this.unlockedThemes = const ['default'],
     this.selectedSkin = 'default',
     this.selectedTheme = 'default',
+    this.unlockedEmotes = const ['wave', 'angry', 'laugh'],
   });
 
   UserProfile copyWith({
@@ -36,6 +38,7 @@ class UserProfile {
     List<String>? unlockedThemes,
     String? selectedSkin,
     String? selectedTheme,
+    List<String>? unlockedEmotes,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -48,6 +51,7 @@ class UserProfile {
       unlockedThemes: unlockedThemes ?? this.unlockedThemes,
       selectedSkin: selectedSkin ?? this.selectedSkin,
       selectedTheme: selectedTheme ?? this.selectedTheme,
+      unlockedEmotes: unlockedEmotes ?? this.unlockedEmotes,
     );
   }
 
@@ -64,13 +68,14 @@ class UserProfile {
       'unlocked_themes': json.encode(unlockedThemes),
       'selected_skin': selectedSkin,
       'selected_theme': selectedTheme,
+      'unlocked_emotes': json.encode(unlockedEmotes),
     };
   }
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     // Helper to safely parse List<String> from dynamic database representations
     List<String> parseList(dynamic val) {
-      if (val == null) return ['default'];
+      if (val == null) return [];
       if (val is String) {
         try {
           final decoded = json.decode(val);
@@ -82,8 +87,12 @@ class UserProfile {
       if (val is List) {
         return val.map((e) => e.toString()).toList();
       }
-      return ['default'];
+      return [];
     }
+
+    final skins = parseList(map['unlocked_skins']);
+    final themes = parseList(map['unlocked_themes']);
+    final emotes = parseList(map['unlocked_emotes']);
 
     return UserProfile(
       id: map['id'] ?? '',
@@ -92,10 +101,11 @@ class UserProfile {
       winsPvc: map['wins_pvc'] ?? 0,
       lossesPvc: map['losses_pvc'] ?? 0,
       draws: map['draws'] ?? 0,
-      unlockedSkins: parseList(map['unlocked_skins']),
-      unlockedThemes: parseList(map['unlocked_themes']),
+      unlockedSkins: skins.isEmpty ? ['default'] : skins,
+      unlockedThemes: themes.isEmpty ? ['default'] : themes,
       selectedSkin: map['selected_skin'] ?? 'default',
       selectedTheme: map['selected_theme'] ?? 'default',
+      unlockedEmotes: emotes.isEmpty ? ['wave', 'angry', 'laugh'] : emotes,
     );
   }
 
