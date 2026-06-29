@@ -14,6 +14,8 @@ import 'screens/profile_dialog.dart';
 import 'screens/win_effect_overlay.dart';
 import 'screens/friends_dialog.dart';
 import 'screens/custom_room_dialog.dart';
+import 'screens/emote_chat_panel.dart';
+import 'models/emote_config.dart';
 import 'app_language.dart';
 import 'dart:async';
 
@@ -513,6 +515,16 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   bool _isOpponentConnected = true;
   final ValueNotifier<int> _matchmakingSecondsNotifier = ValueNotifier<int>(0);
 
+  // Emote / Quick Chat state
+  String? _myFloatingEmote;       // emoji float
+  String? _oppFloatingEmote;      // opp emoji float
+  String? _myChatBubble;          // my quick chat message
+  String? _oppChatBubble;         // opp quick chat message
+  Timer? _myEmoteTimer;
+  Timer? _oppEmoteTimer;
+  Timer? _myChatTimer;
+  Timer? _oppChatTimer;
+
   // Helpers for reward system
   int _getReviveCost() {
     return 15 + 15 * _reviveCount;
@@ -876,6 +888,50 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     super.dispose();
   }
 
+  void _sendEmoteOrChat({String? emoteId, String? chatMessage}) {
+    if (_pvpMatchChannel == null) return;
+
+    if (emoteId != null) {
+      final emote = EmoteConfig.getEmote(emoteId);
+      _pvpMatchChannel!.sendBroadcastMessage(
+        event: 'emote',
+        payload: {'emoji': emote.emoji},
+      );
+      _myEmoteTimer?.cancel();
+      setState(() => _myFloatingEmote = emote.emoji);
+      _myEmoteTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _myFloatingEmote = null);
+      });
+    }
+
+    if (chatMessage != null) {
+      _pvpMatchChannel!.sendBroadcastMessage(
+        event: 'chat',
+        payload: {'message': chatMessage},
+      );
+      _myChatTimer?.cancel();
+      setState(() => _myChatBubble = chatMessage);
+      _myChatTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _myChatBubble = null);
+      });
+    }
+  }
+
+  void _openEmotePanel() {
+    if (_userProfile == null || _pvpMatchId == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => EmoteChatPanel(
+        unlockedEmotes: _userProfile!.unlockedEmotes,
+        language: LanguageManager.instance.currentLanguage,
+        onSend: ({String? emoteId, String? chatMessage}) =>
+            _sendEmoteOrChat(emoteId: emoteId, chatMessage: chatMessage),
+      ),
+    );
+  }
+
   void _cleanupPvpState() {
     _matchmakingTimer?.cancel();
     _matchmakingPollTimer?.cancel();
@@ -883,6 +939,15 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     _matchmakingTimer = null;
     _matchmakingPollTimer = null;
     _turnCountdownTimer = null;
+    
+    _myEmoteTimer?.cancel();
+    _oppEmoteTimer?.cancel();
+    _myChatTimer?.cancel();
+    _oppChatTimer?.cancel();
+    _myFloatingEmote = null;
+    _oppFloatingEmote = null;
+    _myChatBubble = null;
+    _oppChatBubble = null;
     
     if (_pvpMatchChannel != null) {
       supabase.removeChannel(_pvpMatchChannel!);
@@ -1255,6 +1320,32 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               _handlePvpMatchUpdate(record);
             }
           },
+        )
+        .onBroadcast(
+          event: 'emote',
+          callback: (payload) {
+            final emoji = payload['emoji'] as String?;
+            if (emoji != null && mounted) {
+              _oppEmoteTimer?.cancel();
+              setState(() => _oppFloatingEmote = emoji);
+              _oppEmoteTimer = Timer(const Duration(seconds: 3), () {
+                if (mounted) setState(() => _oppFloatingEmote = null);
+              });
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'chat',
+          callback: (payload) {
+            final msg = payload['message'] as String?;
+            if (msg != null && mounted) {
+              _oppChatTimer?.cancel();
+              setState(() => _oppChatBubble = msg);
+              _oppChatTimer = Timer(const Duration(seconds: 4), () {
+                if (mounted) setState(() => _oppChatBubble = null);
+              });
+            }
+          },
         );
     
     _pvpMatchChannel!.subscribe();
@@ -1505,65 +1596,105 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
     required Color roleColor,
     required String label,
     required bool isActive,
+    bool showEmoteButton = false,
+    String? floatingEmoji,
+    String? chatBubble,
   }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: isActive ? roleColor.withOpacity(0.06) : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: isActive ? roleColor.withOpacity(0.3) : Colors.transparent,
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: isActive ? roleColor : Colors.white30,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isActive ? roleColor.withOpacity(0.06) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isActive ? roleColor.withOpacity(0.3) : Colors.transparent,
+              width: 1,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: roleColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: roleColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              role,
-              style: TextStyle(
-                color: roleColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? roleColor : Colors.white30,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showEmoteButton)
+                    GestureDetector(
+                      onTap: _openEmotePanel,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.06),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.12)),
+                        ),
+                        child: const Text('😊', style: TextStyle(fontSize: 14)),
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: roleColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: roleColor.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      role,
+                      style: TextStyle(
+                        color: roleColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        if (floatingEmoji != null)
+          Positioned(
+            top: -24,
+            right: 12,
+            child: _FloatingEmoteBubble(emoji: floatingEmoji),
+          ),
+        if (chatBubble != null)
+          Positioned(
+            bottom: -22,
+            left: 10,
+            right: 10,
+            child: _ChatBubbleWidget(message: chatBubble),
+          ),
+      ],
     );
   }
 
@@ -2906,6 +3037,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               roleColor: myColor,
               label: 'BẠN',
               isActive: isMyTurn,
+              showEmoteButton: true,
+              floatingEmoji: _myFloatingEmote,
+              chatBubble: _myChatBubble,
             ),
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
@@ -2918,6 +3052,9 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
               roleColor: oppColor,
               label: 'ĐỐI THỦ',
               isActive: !isMyTurn,
+              showEmoteButton: false,
+              floatingEmoji: _oppFloatingEmote,
+              chatBubble: _oppChatBubble,
             ),
           ],
         ),
@@ -4594,5 +4731,117 @@ class CaroAI {
     final scored = cands.map((c) => MapEntry(c, _scoreMove(board, c.x, c.y, boardSize, winLength))).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return scored.take(maxCount).map((e) => e.key).toList();
+  }
+}
+
+class _FloatingEmoteBubble extends StatefulWidget {
+  final String emoji;
+  const _FloatingEmoteBubble({required this.emoji});
+  @override
+  State<_FloatingEmoteBubble> createState() => _FloatingEmoteBubbleState();
+}
+
+class _FloatingEmoteBubbleState extends State<_FloatingEmoteBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _opacity;
+  late Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2500));
+    _opacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 15),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 60),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 25),
+    ]).animate(_ctrl);
+    _slide = Tween<double>(begin: 0, end: -20)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Transform.translate(
+          offset: Offset(0, _slide.value),
+          child: Text(widget.emoji, style: const TextStyle(fontSize: 32)),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatBubbleWidget extends StatefulWidget {
+  final String message;
+  const _ChatBubbleWidget({required this.message});
+  @override
+  State<_ChatBubbleWidget> createState() => _ChatBubbleWidgetState();
+}
+
+class _ChatBubbleWidgetState extends State<_ChatBubbleWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 3500));
+    _opacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 10),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.0), weight: 70),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 20),
+    ]).animate(_ctrl);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Opacity(
+        opacity: _opacity.value,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              )
+            ],
+          ),
+          child: Text(
+            widget.message,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
   }
 }
