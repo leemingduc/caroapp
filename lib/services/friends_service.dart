@@ -6,7 +6,7 @@ class FriendsService {
     try {
       final result = await supabase
           .from('profiles')
-          .select('id, email, last_seen_at')
+          .select('id, email, last_seen_at, display_name')
           .eq('email', email.trim().toLowerCase())
           .maybeSingle();
       return result;
@@ -43,7 +43,7 @@ class FriendsService {
   }
 
   /// Trả về danh sách tất cả bạn bè đã được chấp nhận của [userId].
-  /// Mỗi phần tử chứa: relationship_id, id, email, last_seen_at.
+  /// Mỗi phần tử chứa: relationship_id, id, email, last_seen_at, display_name.
   static Future<List<Map<String, dynamic>>> getFriends(String userId) async {
     try {
       // Truy vấn khi user là người gửi lời mời (user_id = userId)
@@ -65,7 +65,7 @@ class FriendsService {
       for (final row in (sentRows as List)) {
         final profile = await supabase
             .from('profiles')
-            .select('id, email, last_seen_at')
+            .select('id, email, last_seen_at, display_name')
             .eq('id', row['friend_id'] as String)
             .maybeSingle();
         if (profile != null) {
@@ -73,6 +73,7 @@ class FriendsService {
             'relationship_id': row['id'],
             'id': row['friend_id'],
             'email': profile['email'],
+            'display_name': profile['display_name'],
             'last_seen_at': profile['last_seen_at'],
           });
         }
@@ -81,7 +82,7 @@ class FriendsService {
       for (final row in (receivedRows as List)) {
         final profile = await supabase
             .from('profiles')
-            .select('id, email, last_seen_at')
+            .select('id, email, last_seen_at, display_name')
             .eq('id', row['user_id'] as String)
             .maybeSingle();
         if (profile != null) {
@@ -89,6 +90,7 @@ class FriendsService {
             'relationship_id': row['id'],
             'id': row['user_id'],
             'email': profile['email'],
+            'display_name': profile['display_name'],
             'last_seen_at': profile['last_seen_at'],
           });
         }
@@ -115,7 +117,7 @@ class FriendsService {
       for (final row in (rows as List)) {
         final profile = await supabase
             .from('profiles')
-            .select('id, email')
+            .select('id, email, display_name')
             .eq('id', row['user_id'] as String)
             .maybeSingle();
         if (profile != null) {
@@ -123,6 +125,7 @@ class FriendsService {
             'relationship_id': row['id'],
             'id': row['user_id'],
             'email': profile['email'],
+            'display_name': profile['display_name'],
           });
         }
       }

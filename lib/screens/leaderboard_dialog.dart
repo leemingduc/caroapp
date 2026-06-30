@@ -93,10 +93,11 @@ class LeaderboardDialog extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final item = data[index];
                         final email = item['email'] ?? text.anonymous;
+                        final displayName = item['display_name'] as String? ?? '';
                         final diamonds = item['diamonds'] ?? 0;
                         final wins = item['wins_pvc'] ?? 0;
                         
-                        return _buildLeaderboardRow(index + 1, email, diamonds, wins);
+                        return _buildLeaderboardRow(index + 1, displayName, email, diamonds, wins);
                       },
                     );
                   },
@@ -126,7 +127,7 @@ class LeaderboardDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildLeaderboardRow(int rank, String email, int diamonds, int wins) {
+  Widget _buildLeaderboardRow(int rank, String displayName, String email, int diamonds, int wins) {
     final text = AppText(language);
     Widget rankIcon;
     Color? rankBgColor;
@@ -166,13 +167,16 @@ class LeaderboardDialog extends StatelessWidget {
       borderGlowColor = Colors.white.withOpacity(0.04);
     }
 
-    // Mask email for privacy (e.g. user***@gmail.com)
-    String displayName = email;
-    if (email.contains('@') && !email.contains('🤖')) {
-      final parts = email.split('@');
-      final name = parts[0];
-      if (name.length > 3) {
-        displayName = '${name.substring(0, 3)}***@${parts[1]}';
+    // Use displayName if set, otherwise mask email for privacy (e.g. user***@gmail.com)
+    String nameToShow = displayName;
+    if (nameToShow.isEmpty) {
+      nameToShow = email;
+      if (email.contains('@') && !email.contains('🤖')) {
+        final parts = email.split('@');
+        final name = parts[0];
+        if (name.length > 3) {
+          nameToShow = '${name.substring(0, 3)}***@${parts[1]}';
+        }
       }
     }
 
@@ -195,7 +199,7 @@ class LeaderboardDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  displayName,
+                  nameToShow,
                   style: TextStyle(
                     color: rank <= 3 ? Colors.white : Colors.white70,
                     fontWeight: rank <= 3 ? FontWeight.bold : FontWeight.normal,

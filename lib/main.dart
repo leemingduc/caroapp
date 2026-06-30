@@ -15,6 +15,7 @@ import 'screens/win_effect_overlay.dart';
 import 'screens/friends_dialog.dart';
 import 'screens/custom_room_dialog.dart';
 import 'screens/emote_chat_panel.dart';
+import 'screens/set_username_dialog.dart';
 import 'models/emote_config.dart';
 import 'app_language.dart';
 import 'dart:async';
@@ -752,11 +753,29 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
         _userProfile = profile;
         _loadingProfile = false;
       });
+      if ((profile.displayName == null || profile.displayName!.isEmpty) && profile.renameCount == 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _promptSetUsername(profile);
+        });
+      }
     } catch (e) {
       setState(() {
         _loadingProfile = false;
       });
     }
+  }
+
+  void _promptSetUsername(UserProfile profile) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => SetUsernameDialog(
+        userProfile: profile,
+        language: LanguageManager.instance.currentLanguage,
+        isMandatory: true,
+        onUsernameUpdated: _updateProfile,
+      ),
+    );
   }
 
   Future<void> _updateProfile(UserProfile updatedProfile) async {
@@ -866,6 +885,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
       builder: (context) => ProfileDialog(
         userProfile: _userProfile!,
         language: LanguageManager.instance.currentLanguage,
+        onProfileUpdated: _updateProfile,
       ),
     );
   }
@@ -1296,6 +1316,34 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
 
     _subscribeToPvpMatch();
     _startTurnTimer();
+    _fetchOpponentName(matchId, role, opponentEmail);
+  }
+
+  Future<void> _fetchOpponentName(String matchId, String role, String fallbackEmail) async {
+    try {
+      final match = await PvpService.getMatch(matchId);
+      if (match != null && mounted) {
+        final oppId = role == 'X' ? match['player2_id'] : match['player1_id'];
+        if (oppId != null) {
+          final oppProfile = await supabase
+              .from('profiles')
+              .select('display_name, email')
+              .eq('id', oppId)
+              .maybeSingle();
+          if (oppProfile != null && mounted) {
+            final String? dispName = oppProfile['display_name'];
+            if (dispName != null && dispName.isNotEmpty) {
+              setState(() {
+                _pvpOpponentEmail = dispName;
+              });
+              return;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error fetching opponent name: $e');
+    }
   }
 
   void _subscribeToPvpMatch() {
@@ -2285,7 +2333,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
             const SizedBox(width: 8),
             Flexible(
               child: Text(
-                widget.userEmail,
+                _userProfile?.displayLabel ?? widget.userEmail,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
@@ -3012,7 +3060,7 @@ class _CaroGameScreenState extends State<CaroGameScreen> with TickerProviderStat
   Widget _buildScoreboardCard() {
     if (_gameMode == GameMode.pvpOnline) {
       final isMyTurn = (_isXTurn && _pvpPlayerRole == 'X') || (!_isXTurn && _pvpPlayerRole == 'O');
-      final myEmail = widget.userEmail;
+      final myEmail = _userProfile?.displayLabel ?? widget.userEmail;
       final oppEmail = _pvpOpponentEmail ?? 'Opponent';
       
       final myRole = _pvpPlayerRole ?? 'X';

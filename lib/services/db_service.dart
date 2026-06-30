@@ -204,7 +204,7 @@ class DbService {
     try {
       final response = await supabase
           .from('profiles')
-          .select('email, diamonds, wins_pvc')
+          .select('email, diamonds, wins_pvc, display_name')
           .order('diamonds', ascending: false)
           .limit(10);
 
@@ -222,5 +222,34 @@ class DbService {
       {'email': 'DeepCaro 🧠', 'diamonds': 950, 'wins_pvc': 62},
       {'email': 'NewbieCaroPlayer', 'diamonds': 100, 'wins_pvc': 0},
     ];
+  }
+
+  /// Call RPC to set display name, return updated UserProfile or throw error
+  static Future<UserProfile?> setDisplayName(String userId, String displayName) async {
+    try {
+      final response = await supabase.rpc(
+        'set_display_name',
+        params: {
+          'p_user_id': userId,
+          'p_display_name': displayName,
+        },
+      );
+      if (response != null) {
+        final profile = UserProfile.fromMap(Map<String, dynamic>.from(response));
+        await _cacheProfile(profile);
+        return profile;
+      }
+      return null;
+    } catch (e) {
+      print('setDisplayName failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Local calculation of username rename cost
+  static int getRenameCost(int renameCount) {
+    if (renameCount == 0) return 0;
+    final cost = 100 * (1 << (renameCount - 1));
+    return cost > 5000 ? 5000 : cost;
   }
 }

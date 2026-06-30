@@ -3,15 +3,18 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../app_language.dart';
 import '../supabase_config.dart';
+import 'set_username_dialog.dart';
 
 class ProfileDialog extends StatefulWidget {
   final UserProfile userProfile;
   final AppLanguage language;
+  final Function(UserProfile) onProfileUpdated;
 
   const ProfileDialog({
     super.key,
     required this.userProfile,
     required this.language,
+    required this.onProfileUpdated,
   });
 
   @override
@@ -149,12 +152,73 @@ class _ProfileDialogState extends State<ProfileDialog> {
                   ),
                   const SizedBox(height: 12),
 
+                  // ── Display name & Change button ──
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _text.displayName,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.userProfile.displayName ?? _text.anonymous,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => SetUsernameDialog(
+                              userProfile: widget.userProfile,
+                              language: widget.language,
+                              onUsernameUpdated: (updated) {
+                                widget.onProfileUpdated(updated);
+                                // Pop ProfileDialog as well so everything updates neatly
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.edit_rounded, size: 14),
+                        label: Text(_text.changeDisplayName),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00F2FE).withOpacity(0.12),
+                          foregroundColor: const Color(0xFF00F2FE),
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: const BorderSide(color: Color(0xFF00F2FE), width: 0.8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
                   // ── User email ──
                   Text(
                     widget.userProfile.email,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.5),
+                      fontSize: 12,
                     ),
                   ),
                   const Divider(color: Colors.white10, height: 24),

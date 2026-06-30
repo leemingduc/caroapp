@@ -298,6 +298,18 @@ class AppText {
   String get locked => isVi ? 'Khóa' : 'Locked';
   String get sendEmote => isVi ? 'Gửi biểu cảm' : 'Send Emote';
 
+  // ─── Username / Display Name ────────────────────────────────────────────────
+  String get displayName => isVi ? 'Tên hiển thị' : 'Display name';
+  String get setDisplayName => isVi ? 'Đặt tên người chơi' : 'Set display name';
+  String get changeDisplayName => isVi ? 'Đổi tên hiển thị' : 'Change display name';
+  String get displayNameFree => isVi ? 'Miễn phí lượt đầu' : 'First time is free';
+  String displayNameCost(int cost) => isVi ? 'Chi phí: $cost Kim Cương 💎' : 'Cost: $cost Diamonds 💎';
+  String get displayNameRequired => isVi ? 'Vui lòng nhập tên' : 'Please enter a name';
+  String get displayNameLengthError => isVi ? 'Tên phải từ 4 đến 20 kí tự' : 'Name must be between 4 and 20 characters';
+  String get displayNameTaken => isVi ? 'Tên hiển thị đã tồn tại' : 'Display name already taken';
+  String get displayNameSuccess => isVi ? 'Cập nhật tên hiển thị thành công!' : 'Display name updated successfully!';
+  String get enterUsername => isVi ? 'Đặt tên người chơi mới' : 'Set your player name';
+
   // ─── Quick Chat ──────────────────────────────────────────────────────────────
   String get quickChatTab => isVi ? 'CHAT NHANH' : 'QUICK CHAT';
   String get quickChatTitle => isVi ? 'Chat nhanh' : 'Quick Chat';

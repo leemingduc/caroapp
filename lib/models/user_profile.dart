@@ -12,6 +12,8 @@ class UserProfile {
   final String selectedSkin;
   final String selectedTheme;
   final List<String> unlockedEmotes;
+  final String? displayName;
+  final int renameCount;
 
   UserProfile({
     required this.id,
@@ -25,7 +27,11 @@ class UserProfile {
     this.selectedSkin = 'default',
     this.selectedTheme = 'default',
     this.unlockedEmotes = const ['wave', 'angry', 'laugh'],
+    this.displayName,
+    this.renameCount = 0,
   });
+
+  String get displayLabel => displayName?.isNotEmpty == true ? displayName! : email;
 
   UserProfile copyWith({
     String? id,
@@ -39,6 +45,8 @@ class UserProfile {
     String? selectedSkin,
     String? selectedTheme,
     List<String>? unlockedEmotes,
+    String? displayName,
+    int? renameCount,
   }) {
     return UserProfile(
       id: id ?? this.id,
@@ -52,6 +60,8 @@ class UserProfile {
       selectedSkin: selectedSkin ?? this.selectedSkin,
       selectedTheme: selectedTheme ?? this.selectedTheme,
       unlockedEmotes: unlockedEmotes ?? this.unlockedEmotes,
+      displayName: displayName ?? this.displayName,
+      renameCount: renameCount ?? this.renameCount,
     );
   }
 
@@ -69,6 +79,8 @@ class UserProfile {
       'selected_skin': selectedSkin,
       'selected_theme': selectedTheme,
       'unlocked_emotes': json.encode(unlockedEmotes),
+      'display_name': displayName,
+      'rename_count': renameCount,
     };
   }
 
@@ -106,6 +118,8 @@ class UserProfile {
       selectedSkin: map['selected_skin'] ?? 'default',
       selectedTheme: map['selected_theme'] ?? 'default',
       unlockedEmotes: emotes.isEmpty ? ['wave', 'angry', 'laugh'] : emotes,
+      displayName: map['display_name'],
+      renameCount: map['rename_count'] ?? 0,
     );
   }
 

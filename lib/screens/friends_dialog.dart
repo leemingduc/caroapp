@@ -239,14 +239,14 @@ class _FriendsDialogState extends State<FriendsDialog>
             radius: 18,
             backgroundColor: Colors.white.withOpacity(0.06),
             child: Text(
-              (f['email'] as String? ?? '?')
+              ((f['display_name'] as String? ?? f['email'] as String? ?? '?'))
                   .substring(0, 1)
                   .toUpperCase(),
               style: const TextStyle(
                   color: Colors.white70, fontWeight: FontWeight.bold),
             ),
           ),
-          title: Text(f['email'] ?? '',
+          title: Text(f['display_name'] as String? ?? f['email'] ?? '',
               style: const TextStyle(color: Colors.white, fontSize: 13)),
           subtitle: Row(
             children: [
@@ -305,14 +305,14 @@ class _FriendsDialogState extends State<FriendsDialog>
             radius: 18,
             backgroundColor: Colors.white.withOpacity(0.06),
             child: Text(
-              (r['email'] as String? ?? '?')
+              ((r['display_name'] as String? ?? r['email'] as String? ?? '?'))
                   .substring(0, 1)
                   .toUpperCase(),
               style: const TextStyle(
                   color: Colors.white70, fontWeight: FontWeight.bold),
             ),
           ),
-          title: Text(r['email'] ?? '',
+          title: Text(r['display_name'] as String? ?? r['email'] ?? '',
               style: const TextStyle(color: Colors.white, fontSize: 13)),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,

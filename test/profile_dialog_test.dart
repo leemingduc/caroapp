@@ -18,6 +18,7 @@ void main() {
           body: ProfileDialog(
             userProfile: userProfile,
             language: AppLanguage.vi,
+            onProfileUpdated: (_) {},
           ),
         ),
       ),
